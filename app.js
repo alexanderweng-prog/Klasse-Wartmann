@@ -1,54 +1,7 @@
 (() => {
   "use strict";
 
-  // ---------- Speicher (robust, falls localStorage blockiert ist) ----------
-  const speicher = {
-    lesen(k, standard) {
-      try { const v = localStorage.getItem(k); return v === null ? standard : JSON.parse(v); }
-      catch { return standard; }
-    },
-    schreiben(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignorieren */ } },
-    loeschen(k) { try { localStorage.removeItem(k); } catch { /* ignorieren */ } }
-  };
-  const K_MATERIAL = "lernapp.material";
-
-  // ---------- Material laden & prüfen ----------
-  function pruefeMaterial(m) {
-    const fehler = [];
-    if (!m || typeof m !== "object") return ["Die Datei enthält kein Objekt."];
-    if (!m.titel) fehler.push("«titel» fehlt.");
-    if (!Array.isArray(m.kapitel) || !m.kapitel.length) fehler.push("«kapitel» fehlt oder ist leer.");
-    const ids = new Set();
-    (m.kapitel || []).forEach((k, i) => {
-      if (!k.id) fehler.push(`Kapitel ${i + 1}: «id» fehlt.`);
-      ids.add(k.id);
-      if (!Array.isArray(k.karten)) fehler.push(`Kapitel «${k.id}»: «karten» fehlt.`);
-    });
-    const pruefeFrage = (f, wo) => {
-      const typen = ["auswahl", "mehrfach", "zuordnen", "offen"];
-      if (!typen.includes(f.typ)) { fehler.push(`${wo}: unbekannter Typ «${f.typ}».`); return; }
-      if (!f.frage) fehler.push(`${wo}: «frage» fehlt.`);
-      if (f.typ === "auswahl" && (!Array.isArray(f.optionen) || typeof f.richtig !== "number")) fehler.push(`${wo}: «optionen» oder «richtig» (Zahl) fehlt.`);
-      if (f.typ === "mehrfach" && (!Array.isArray(f.optionen) || !Array.isArray(f.richtig))) fehler.push(`${wo}: «optionen» oder «richtig» (Liste) fehlt.`);
-      if (f.typ === "zuordnen" && (!Array.isArray(f.paare) || f.paare.length < 2)) fehler.push(`${wo}: «paare» braucht mind. 2 Einträge.`);
-      if (f.typ === "offen" && !f.musterloesung) fehler.push(`${wo}: «musterloesung» fehlt.`);
-    };
-    (m.uebungen || []).forEach((f, i) => {
-      if (!ids.has(f.kapitel)) fehler.push(`Übung ${i + 1}: Kapitel «${f.kapitel}» gibt es nicht.`);
-      pruefeFrage(f, `Übung ${i + 1}`);
-    });
-    if (m.probetest) (m.probetest.fragen || []).forEach((f, i) => pruefeFrage(f, `Probetest-Frage ${i + 1}`));
-    return fehler;
-  }
-
-  function parseDatei(text) {
-    let t = text.trim();
-    // .js-Datei: alles vor dem ersten "{" (Kommentare, "window.LERNINHALT =") und nach der letzten "}" entfernen
-    const start = t.indexOf("{"), ende = t.lastIndexOf("}");
-    if (start === -1 || ende === -1) throw new Error("Keine geschweiften Klammern gefunden.");
-    t = t.slice(start, ende + 1);
-    return JSON.parse(t);
-  }
+  const { speicher, h, mischen, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL } = window.Lernapp;
 
   const eigenesMaterial = speicher.lesen(K_MATERIAL, null);
   const M = (eigenesMaterial && !pruefeMaterial(eigenesMaterial).length) ? eigenesMaterial : window.LERNINHALT;
@@ -62,24 +15,8 @@
 
   // ---------- Hilfen ----------
   const app = document.getElementById("app");
-  function h(tag, attrs = {}, ...kinder) {
-    const el = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs || {})) {
-      if (v === undefined || v === null || v === false) continue;
-      if (k === "class") el.className = v;
-      else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
-      else if (k === "html") el.innerHTML = v; // nur für eigenes, statisches Markup
-      else el.setAttribute(k, v === true ? "" : v);
-    }
-    for (const kind of kinder.flat()) {
-      if (kind === null || kind === undefined || kind === false) continue;
-      el.append(kind instanceof Node ? kind : document.createTextNode(String(kind)));
-    }
-    return el;
-  }
-  const mischen = (arr) => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const zufall = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  const masko = M.maskottchen || {};
+  const masko = (M && M.maskottchen) || {};
   const lob = () => zufall(masko.lob && masko.lob.length ? masko.lob : ["Richtig!"]);
   const trost = () => zufall(masko.trost && masko.trost.length ? masko.trost : ["Leider falsch."]);
   function zeige(...knoten) { app.replaceChildren(...knoten); window.scrollTo(0, 0); app.focus({ preventScroll: true }); }
@@ -464,8 +401,7 @@
       const daten = parseDatei(await datei.text());
       const fehler = pruefeMaterial(daten);
       if (fehler.length) { melde("Fehler im Material: " + fehler.slice(0, 5).join(" "), "fehler"); return; }
-      speicher.schreiben(K_MATERIAL, daten);
-      if (JSON.stringify(speicher.lesen(K_MATERIAL, null)) !== JSON.stringify(daten)) {
+      if (!speicher.schreiben(K_MATERIAL, daten)) {
         melde("Der Browser erlaubt kein Speichern. Ersetze stattdessen die Datei inhalt/thema.js.", "fehler"); return;
       }
       melde(`«${daten.titel}» geladen. Die App startet neu …`, "ok");
@@ -475,10 +411,12 @@
     } finally { e.target.value = ""; }
   });
   document.getElementById("lp-export").addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify(M, null, 2)], { type: "application/json" });
-    const a = h("a", { href: URL.createObjectURL(blob), download: "lernmaterial.json" });
-    document.body.append(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    herunterladen(JSON.stringify(M, null, 2), "lernmaterial.json", "application/json");
+  });
+  document.getElementById("lp-editor").addEventListener("click", () => {
+    dlg.close();
+    stoppeTimer();
+    window.LernEditor.oeffnen(M, app, startseite);
   });
   document.getElementById("lp-standard").addEventListener("click", () => {
     if (!confirm("Eigenes Material entfernen und Standardmaterial aus inhalt/thema.js verwenden?")) return;

@@ -19,6 +19,24 @@ Der Lernfortschritt wird nur im Browser des jeweiligen Geräts gespeichert.
 
 Alle Inhalte stehen in **`inhalt/thema.js`**. Die übrigen Dateien bleiben unverändert.
 
+### Mit dem Editor (empfohlen)
+
+In der App auf **Lehrperson → Editor öffnen** klicken. Der Editor hat vier Reiter:
+
+- **Allgemein:** Titel, Fach und Stufe des Themas sowie das Maskottchen (Name, Bild, Sprüche). Ein Bild kannst du direkt auswählen; es wird verkleinert und ins Material eingebettet.
+- **Theorie:** Kapitel mit Lernkarten (Titel, Text, Merksatz)
+- **Übungen:** Fragen je Kapitel. Bei Auswahlfragen markierst du die richtige Antwort per Klick.
+- **Probetest:** Zeit, Fragen mit Punkten und Notenschlüssel (Formel oder eigene Tabelle)
+
+Danach:
+- **In App übernehmen:** Der Editor prüft das Material auf Fehler und lädt die App mit dem neuen Material neu. Das gilt nur für diesen Browser.
+- **thema.js herunterladen:** Damit ersetzt du `inhalt/thema.js`. So bekommen alle Geräte das neue Material.
+- **JSON herunterladen / Datei öffnen:** Material sichern, weitergeben oder später weiterbearbeiten
+
+Der Editor sichert laufend einen Entwurf im Browser. Schliesst du ihn versehentlich, kannst du beim nächsten Öffnen dort weiterfahren.
+
+### Ohne Editor
+
 **Variante A (für alle):** `inhalt/thema.js` durch eine neue Datei mit gleichem Aufbau ersetzen.
 
 **Variante B (nur in diesem Browser):** In der App auf **Lehrperson → Material laden** klicken und eine `.json`- oder `.js`-Datei
