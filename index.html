@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lernapp</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="brand" id="home-btn" type="button" aria-label="Zur Startseite">
+      <span class="brand-fach" id="brand-fach">Medien und Informatik</span>
+      <span class="brand-titel" id="brand-titel">Lernapp</span>
+    </button>
+    <button class="btn btn-ghost" id="lp-btn" type="button">Lehrperson</button>
+  </header>
+
+  <main id="app" tabindex="-1"></main>
+
+  <dialog id="lp-dialog">
+    <form method="dialog" class="lp-form">
+      <h2>Bereich Lehrperson</h2>
+      <p class="muted" id="lp-quelle"></p>
+
+      <h3>Material austauschen</h3>
+      <p>Lade eine <code>.json</code>- oder <code>.js</code>-Datei im Format von <code>inhalt/thema.js</code>.
+        Das Material wird in diesem Browser gespeichert und ersetzt das Standardmaterial, bis du zurücksetzt.</p>
+      <label class="btn btn-primary file-btn">
+        Material laden …
+        <input type="file" id="lp-datei" accept=".json,.js,application/json,text/javascript" hidden>
+      </label>
+      <p class="lp-meldung" id="lp-meldung" role="status"></p>
+
+      <div class="lp-row">
+        <button class="btn" type="button" id="lp-export">Aktuelles Material als Vorlage herunterladen</button>
+        <button class="btn" type="button" id="lp-standard">Standardmaterial wiederherstellen</button>
+        <button class="btn" type="button" id="lp-fortschritt">Lernfortschritt löschen</button>
+      </div>
+
+      <div class="lp-row end">
+        <button class="btn btn-primary" value="close">Schliessen</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="inhalt/thema.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

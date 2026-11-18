@@ -1,0 +1,510 @@
+(() => {
+  "use strict";
+
+  // ---------- Speicher (robust, falls localStorage blockiert ist) ----------
+  const speicher = {
+    lesen(k, standard) {
+      try { const v = localStorage.getItem(k); return v === null ? standard : JSON.parse(v); }
+      catch { return standard; }
+    },
+    schreiben(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignorieren */ } },
+    loeschen(k) { try { localStorage.removeItem(k); } catch { /* ignorieren */ } }
+  };
+  const K_MATERIAL = "lernapp.material";
+
+  // ---------- Material laden & prüfen ----------
+  function pruefeMaterial(m) {
+    const fehler = [];
+    if (!m || typeof m !== "object") return ["Die Datei enthält kein Objekt."];
+    if (!m.titel) fehler.push("«titel» fehlt.");
+    if (!Array.isArray(m.kapitel) || !m.kapitel.length) fehler.push("«kapitel» fehlt oder ist leer.");
+    const ids = new Set();
+    (m.kapitel || []).forEach((k, i) => {
+      if (!k.id) fehler.push(`Kapitel ${i + 1}: «id» fehlt.`);
+      ids.add(k.id);
+      if (!Array.isArray(k.karten)) fehler.push(`Kapitel «${k.id}»: «karten» fehlt.`);
+    });
+    const pruefeFrage = (f, wo) => {
+      const typen = ["auswahl", "mehrfach", "zuordnen", "offen"];
+      if (!typen.includes(f.typ)) { fehler.push(`${wo}: unbekannter Typ «${f.typ}».`); return; }
+      if (!f.frage) fehler.push(`${wo}: «frage» fehlt.`);
+      if (f.typ === "auswahl" && (!Array.isArray(f.optionen) || typeof f.richtig !== "number")) fehler.push(`${wo}: «optionen» oder «richtig» (Zahl) fehlt.`);
+      if (f.typ === "mehrfach" && (!Array.isArray(f.optionen) || !Array.isArray(f.richtig))) fehler.push(`${wo}: «optionen» oder «richtig» (Liste) fehlt.`);
+      if (f.typ === "zuordnen" && (!Array.isArray(f.paare) || f.paare.length < 2)) fehler.push(`${wo}: «paare» braucht mind. 2 Einträge.`);
+      if (f.typ === "offen" && !f.musterloesung) fehler.push(`${wo}: «musterloesung» fehlt.`);
+    };
+    (m.uebungen || []).forEach((f, i) => {
+      if (!ids.has(f.kapitel)) fehler.push(`Übung ${i + 1}: Kapitel «${f.kapitel}» gibt es nicht.`);
+      pruefeFrage(f, `Übung ${i + 1}`);
+    });
+    if (m.probetest) (m.probetest.fragen || []).forEach((f, i) => pruefeFrage(f, `Probetest-Frage ${i + 1}`));
+    return fehler;
+  }
+
+  function parseDatei(text) {
+    let t = text.trim();
+    // .js-Datei: alles vor dem ersten "{" (Kommentare, "window.LERNINHALT =") und nach der letzten "}" entfernen
+    const start = t.indexOf("{"), ende = t.lastIndexOf("}");
+    if (start === -1 || ende === -1) throw new Error("Keine geschweiften Klammern gefunden.");
+    t = t.slice(start, ende + 1);
+    return JSON.parse(t);
+  }
+
+  const eigenesMaterial = speicher.lesen(K_MATERIAL, null);
+  const M = (eigenesMaterial && !pruefeMaterial(eigenesMaterial).length) ? eigenesMaterial : window.LERNINHALT;
+  const materialQuelle = M === eigenesMaterial ? "eigenes" : "standard";
+
+  // Fortschritt pro Material getrennt speichern
+  const K_FORTSCHRITT = "lernapp.fortschritt." + hash(JSON.stringify(M ? M.titel + (M.kapitel || []).map(k => k.id).join() : ""));
+  function hash(s) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) | 0; return (h >>> 0).toString(36); }
+  let fortschritt = speicher.lesen(K_FORTSCHRITT, { gelernt: {}, uebung: {}, tests: [] });
+  const sichern = () => speicher.schreiben(K_FORTSCHRITT, fortschritt);
+
+  // ---------- Hilfen ----------
+  const app = document.getElementById("app");
+  function h(tag, attrs = {}, ...kinder) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v === undefined || v === null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+      else if (k === "html") el.innerHTML = v; // nur für eigenes, statisches Markup
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    for (const kind of kinder.flat()) {
+      if (kind === null || kind === undefined || kind === false) continue;
+      el.append(kind instanceof Node ? kind : document.createTextNode(String(kind)));
+    }
+    return el;
+  }
+  const mischen = (arr) => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const zufall = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const masko = M.maskottchen || {};
+  const lob = () => zufall(masko.lob && masko.lob.length ? masko.lob : ["Richtig!"]);
+  const trost = () => zufall(masko.trost && masko.trost.length ? masko.trost : ["Leider falsch."]);
+  function zeige(...knoten) { app.replaceChildren(...knoten); window.scrollTo(0, 0); app.focus({ preventScroll: true }); }
+
+  // ---------- Maskottchen ----------
+  // Platzhalter-Figur (neutral). Eigenes Bild: Pfad unter maskottchen.bild in thema.js
+  const PLATZHALTER_SVG = `
+    <svg viewBox="0 0 120 120" role="img" aria-label="Maskottchen (Platzhalter)">
+      <ellipse cx="60" cy="112" rx="30" ry="5" fill="#000" opacity=".12"/>
+      <circle cx="60" cy="64" r="42" fill="#f5b83d"/>
+      <circle cx="60" cy="64" r="42" fill="none" stroke="#c98a17" stroke-width="3"/>
+      <circle cx="45" cy="58" r="10" fill="#fff"/><circle cx="75" cy="58" r="10" fill="#fff"/>
+      <circle cx="47" cy="60" r="5" fill="#1c2233"/><circle cx="77" cy="60" r="5" fill="#1c2233"/>
+      <path d="M44 80 Q60 94 76 80" fill="none" stroke="#1c2233" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="34" cy="76" r="5" fill="#ef7d57" opacity=".6"/><circle cx="86" cy="76" r="5" fill="#ef7d57" opacity=".6"/>
+      <path d="M30 30 L60 16 L90 30 L60 44 Z" fill="#1f5fd1"/>
+      <path d="M86 32 L86 46" stroke="#1f5fd1" stroke-width="3"/><circle cx="86" cy="48" r="3" fill="#1f5fd1"/>
+    </svg>`;
+  function figur() {
+    const box = h("div", { class: "maskottchen-figur" });
+    if (masko.bild) {
+      const img = h("img", { src: masko.bild, alt: masko.name || "Maskottchen" });
+      img.addEventListener("error", () => { box.innerHTML = PLATZHALTER_SVG; }, { once: true });
+      box.append(img);
+    } else box.innerHTML = PLATZHALTER_SVG;
+    return box;
+  }
+  function sprechblase(text, { klein = false, hopp = false } = {}) {
+    const f = figur();
+    if (hopp) f.classList.add("hopp");
+    return h("div", { class: "maskottchen" + (klein ? " klein" : ""), "aria-live": "polite" },
+      f, h("div", { class: "blase" }, h("strong", {}, masko.name || "Tipp"), text));
+  }
+
+  // ---------- Startseite ----------
+  function kapitelStand(k) {
+    const gelernt = (fortschritt.gelernt[k.id] || []).length;
+    const u = fortschritt.uebung[k.id];
+    return { gelernt, total: k.karten.length, uebung: u };
+  }
+  function startseite() {
+    const karten = M.kapitel.map(k => {
+      const s = kapitelStand(k);
+      const anzahlUebungen = (M.uebungen || []).filter(f => f.kapitel === k.id).length;
+      return h("article", { class: "card kapitel-karte" },
+        h("h3", {}, h("span", { "aria-hidden": "true" }, k.icon || "📘"), k.titel),
+        h("div", { class: "muted" }, `Theorie: ${s.gelernt} von ${s.total} Karten gelernt`),
+        h("div", { class: "balken", role: "progressbar", "aria-valuemin": 0, "aria-valuemax": s.total, "aria-valuenow": s.gelernt },
+          h("span", { style: `width:${s.total ? (100 * s.gelernt / s.total) : 0}%` })),
+        s.uebung ? h("p", { class: "muted" }, `Beste Übung: ${s.uebung.best} von ${s.uebung.von} richtig`) : null,
+        h("div", { class: "row" },
+          h("button", { class: "btn btn-primary", type: "button", onclick: () => lernen(k, 0) }, "Theorie lernen"),
+          anzahlUebungen ? h("button", { class: "btn", type: "button", onclick: () => ueben(k) }, `Üben (${anzahlUebungen})`) : null));
+    });
+
+    const letzte = fortschritt.tests[fortschritt.tests.length - 1];
+    const pt = M.probetest;
+    const probe = pt && pt.fragen && pt.fragen.length ? h("article", { class: "card probetest-karte" },
+      h("h3", {}, "📝 ", pt.titel || "Probetest"),
+      h("p", {}, pt.hinweis || ""),
+      letzte ? h("p", { class: "muted" }, `Letzter Versuch: ${letzte.punkte} von ${letzte.max} Punkten · Note ${letzte.note.toFixed(2)}`) : null,
+      h("button", { class: "btn btn-primary", type: "button", onclick: probetestStart }, "Probetest starten")) : null;
+
+    const alleUebungen = (M.uebungen || []).length;
+    zeige(h("div", { class: "stack" },
+      sprechblase(masko.begruessung || `Willkommen! Heute lernst du: ${M.titel}.`, { hopp: true }),
+      h("h1", {}, M.titel),
+      h("div", { class: "grid" }, karten),
+      alleUebungen ? h("div", { class: "row" },
+        h("button", { class: "btn", type: "button", onclick: () => ueben(null) }, `🔀 Gemischt üben (alle ${alleUebungen} Fragen)`)) : null,
+      probe));
+  }
+
+  // ---------- Theorie ----------
+  function lernen(k, i) {
+    const karte = k.karten[i];
+    const gelernt = new Set(fortschritt.gelernt[k.id] || []);
+    const markieren = () => { gelernt.add(i); fortschritt.gelernt[k.id] = [...gelernt]; sichern(); };
+
+    const nav = h("div", { class: "punkte-nav", role: "tablist", "aria-label": "Karten" },
+      k.karten.map((c, j) => h("button", {
+        type: "button", class: (j === i ? "aktiv " : "") + (gelernt.has(j) ? "gelernt" : ""),
+        "aria-label": `Karte ${j + 1}: ${c.titel}`, "aria-current": j === i ? "true" : null,
+        onclick: () => lernen(k, j)
+      })));
+
+    const letzte = i === k.karten.length - 1;
+    zeige(h("div", { class: "stack" },
+      h("div", { class: "row between" },
+        h("button", { class: "btn btn-ghost", type: "button", onclick: startseite }, "← Übersicht"),
+        h("span", { class: "muted" }, `${k.icon || ""} ${k.titel} · Karte ${i + 1} von ${k.karten.length}`)),
+      h("article", { class: "card lernkarte" },
+        h("h2", {}, karte.titel),
+        h("p", { class: "text" }, karte.text),
+        karte.merksatz ? h("div", { class: "merksatz" }, "💡 ", karte.merksatz) : null),
+      nav,
+      h("div", { class: "row between" },
+        h("button", { class: "btn", type: "button", disabled: i === 0, onclick: () => lernen(k, i - 1) }, "← Zurück"),
+        letzte
+          ? h("button", { class: "btn btn-primary", type: "button", onclick: () => { markieren(); kapitelFertig(k); } }, "Verstanden ✓ Fertig")
+          : h("button", { class: "btn btn-primary", type: "button", onclick: () => { markieren(); lernen(k, i + 1); } }, "Verstanden ✓ Weiter →"))));
+  }
+  function kapitelFertig(k) {
+    const anzahl = (M.uebungen || []).filter(f => f.kapitel === k.id).length;
+    zeige(h("div", { class: "stack" },
+      sprechblase(`Du hast alle Karten zu «${k.titel}» durch. ${anzahl ? "Jetzt testen wir, ob es sitzt!" : ""}`, { hopp: true }),
+      h("div", { class: "row" },
+        anzahl ? h("button", { class: "btn btn-primary", type: "button", onclick: () => ueben(k) }, "Jetzt üben") : null,
+        h("button", { class: "btn", type: "button", onclick: () => lernen(k, 0) }, "Nochmals lesen"),
+        h("button", { class: "btn", type: "button", onclick: startseite }, "Zur Übersicht"))));
+  }
+
+  // ---------- Fragen rendern (für Üben und Probetest) ----------
+  // Gibt { knoten, auswerten() -> {punkte, max, richtig}, sperren() } zurück
+  function frageWidget(f, { sofortFeedback, optionenMischen = false }) {
+    const max = f.punkte || (f.typ === "zuordnen" ? f.paare.length : 1);
+    const teile = [];
+    if (f.abschnitt) teile.push(h("div", { class: "abschnitt" }, f.abschnitt));
+    teile.push(h("p", { class: "frage-text" }, f.frage));
+    if (f.kontext && f.kontext.kopf) {
+      teile.push(h("div", { class: "tabelle-wrap" }, h("table", {},
+        h("thead", {}, h("tr", {}, f.kontext.kopf.map(x => h("th", { scope: "col" }, x)))),
+        h("tbody", {}, f.kontext.zeilen.map(z => h("tr", {}, z.map(x => h("td", {}, x))))))));
+    } else if (typeof f.kontext === "string") teile.push(h("p", {}, f.kontext));
+
+    const box = h("div", {});
+    let auswerten, sperren;
+
+    if (f.typ === "auswahl" || f.typ === "mehrfach") {
+      const mehr = f.typ === "mehrfach";
+      const reihenfolge = optionenMischen ? mischen(f.optionen.map((_, j) => j)) : f.optionen.map((_, j) => j);
+      const gewaehlt = new Set();
+      const buttons = reihenfolge.map(j => h("button", {
+        class: "opt", type: "button", "aria-pressed": "false",
+        onclick: () => {
+          if (mehr) { gewaehlt.has(j) ? gewaehlt.delete(j) : gewaehlt.add(j); }
+          else { gewaehlt.clear(); gewaehlt.add(j); }
+          buttons.forEach((b, x) => { const an = gewaehlt.has(reihenfolge[x]); b.classList.toggle("gewaehlt", an); b.setAttribute("aria-pressed", String(an)); });
+          if (!mehr && sofortFeedback && box.onAntwort) box.onAntwort();
+        }
+      }, f.optionen[j]));
+      if (mehr) box.append(h("p", { class: "muted" }, "Mehrere Antworten möglich."));
+      box.append(h("div", { class: "optionen" }, buttons));
+      const richtigSet = new Set(mehr ? f.richtig : [f.richtig]);
+      auswerten = () => {
+        const ok = gewaehlt.size === richtigSet.size && [...gewaehlt].every(x => richtigSet.has(x));
+        return { punkte: ok ? max : 0, max, richtig: ok, beantwortet: gewaehlt.size > 0 };
+      };
+      sperren = () => buttons.forEach((b, x) => {
+        const j = reihenfolge[x]; b.disabled = true;
+        if (richtigSet.has(j)) b.classList.add("richtig");
+        else if (gewaehlt.has(j)) b.classList.add("falsch");
+      });
+    }
+
+    if (f.typ === "zuordnen") {
+      const ziele = mischen(f.paare.map(p => p.rechts));
+      const zeilen = f.paare.map((p, j) => {
+        const sel = h("select", { "aria-label": `Zuordnung für: ${p.links}`, id: `z-${Math.random().toString(36).slice(2)}` },
+          h("option", { value: "" }, "– bitte wählen –"), ziele.map(z => h("option", { value: z }, z)));
+        const zeile = h("div", { class: "zuordnung-zeile" }, h("div", { class: "links" }, p.links), sel);
+        return { p, sel, zeile };
+      });
+      box.append(h("div", { class: "zuordnung" }, zeilen.map(z => z.zeile)));
+      auswerten = () => {
+        let pkt = 0, alle = true;
+        zeilen.forEach(z => { if (z.sel.value === z.p.rechts) pkt++; if (!z.sel.value) alle = false; });
+        const anteil = pkt / zeilen.length;
+        return { punkte: Math.round(anteil * max * 4) / 4, max, richtig: pkt === zeilen.length, beantwortet: alle };
+      };
+      sperren = () => zeilen.forEach(z => {
+        z.sel.disabled = true;
+        const ok = z.sel.value === z.p.rechts;
+        z.zeile.classList.add(ok ? "richtig" : "falsch");
+        if (!ok) z.zeile.append(h("div", { class: "korrektur" }, "Richtig: ", z.p.rechts));
+      });
+    }
+
+    if (f.typ === "offen") {
+      const ta = h("textarea", { "aria-label": "Deine Antwort", placeholder: "Schreibe deine Antwort hier …" });
+      box.append(ta);
+      let selbst = null;
+      const selbstBox = h("div", {});
+      box.append(selbstBox);
+      auswerten = () => ({ punkte: selbst ?? 0, max, richtig: selbst === max, beantwortet: ta.value.trim().length > 0, offen: true, bewertet: selbst !== null });
+      sperren = (onBewertet) => {
+        ta.readOnly = true;
+        const knoepfe = [];
+        for (let p = 0; p <= max; p++) {
+          const b = h("button", { class: "btn", type: "button", onclick: () => {
+            selbst = p; knoepfe.forEach(k => k.classList.toggle("aktiv", k === b)); onBewertet && onBewertet();
+          } }, `${p} ${p === 1 ? "Punkt" : "Punkte"}`);
+          knoepfe.push(b);
+        }
+        selbstBox.replaceChildren(
+          h("div", { class: "loesung" }, h("strong", {}, "Lösung: "), f.musterloesung),
+          h("p", { class: "muted", style: "margin-top:10px" }, "Vergleiche ehrlich: Wie viele Punkte gibst du dir?"),
+          h("div", { class: "selbst", role: "group", "aria-label": "Selbstbewertung" }, knoepfe));
+      };
+    }
+
+    teile.push(box);
+    return { knoten: h("div", {}, teile), auswerten, sperren, box, max };
+  }
+
+  // ---------- Üben ----------
+  function ueben(k) {
+    const pool = (M.uebungen || []).filter(f => !k || f.kapitel === k.id);
+    const fragen = mischen(pool);
+    let i = 0, richtigeAnzahl = 0;
+    const kapitelName = k ? k.titel : "Gemischt";
+
+    function schritt() {
+      const f = fragen[i];
+      const w = frageWidget(f, { sofortFeedback: false, optionenMischen: true });
+      const feedback = h("div", {});
+      const weiter = h("button", { class: "btn btn-primary", type: "button", hidden: true, onclick: () => {
+        if (f.typ === "offen" && w.auswerten().richtig) richtigeAnzahl++;
+        i++; i < fragen.length ? schritt() : ende();
+      } },
+        i === fragen.length - 1 ? "Resultat ansehen" : "Nächste Frage →");
+      const blaseBox = h("div", {});
+
+      const pruefen = h("button", { class: "btn btn-primary", type: "button", onclick: () => {
+        const r = w.auswerten();
+        if (!r.beantwortet) { blaseBox.replaceChildren(sprechblase("Wähle oder schreibe zuerst eine Antwort.", { klein: true })); return; }
+        pruefen.hidden = true;
+        if (f.typ === "offen") {
+          w.sperren(() => {
+            const r2 = w.auswerten();
+            weiter.hidden = false;
+            blaseBox.replaceChildren(sprechblase(r2.richtig ? lob() : "Gut, dass du ehrlich bist. Lies die Lösung nochmals genau.", { klein: true, hopp: r2.richtig }));
+          });
+          return;
+        }
+        w.sperren();
+        if (r.richtig) richtigeAnzahl++;
+        feedback.replaceChildren(h("div", { class: "feedback " + (r.richtig ? "ok" : "nok") },
+          h("strong", {}, r.richtig ? "Richtig! " : "Nicht ganz. "), f.erklaerung || ""));
+        blaseBox.replaceChildren(sprechblase(r.richtig ? lob() : trost(), { klein: true, hopp: r.richtig }));
+        weiter.hidden = false;
+        weiter.focus();
+      } }, "Prüfen");
+
+      zeige(h("div", { class: "stack" },
+        h("div", { class: "row between" },
+          h("button", { class: "btn btn-ghost", type: "button", onclick: startseite }, "← Übersicht"),
+          h("span", { class: "muted" }, `Üben · ${kapitelName} · Frage ${i + 1} von ${fragen.length}`)),
+        h("article", { class: "card" }, w.knoten, feedback),
+        blaseBox,
+        h("div", { class: "row end" }, pruefen, weiter)));
+    }
+
+    function ende() {
+      const id = k ? k.id : "_gemischt";
+      const alt = fortschritt.uebung[id];
+      fortschritt.uebung[id] = { best: Math.max(richtigeAnzahl, alt ? alt.best : 0), von: fragen.length };
+      sichern();
+      const quote = richtigeAnzahl / fragen.length;
+      const text = quote === 1 ? "Alles richtig! Du bist bereit für den Test." :
+        quote >= .7 ? "Sehr gut! Schau dir die Fehler nochmals an." :
+        "Lies die Theorie-Karten nochmals durch und versuch es dann wieder.";
+      zeige(h("div", { class: "stack" },
+        sprechblase(text, { hopp: quote >= .7 }),
+        h("article", { class: "card resultat" },
+          h("p", { class: "muted" }, `Übung ${kapitelName}`),
+          h("div", { class: "note-gross" }, `${richtigeAnzahl} / ${fragen.length}`),
+          h("p", {}, "Fragen richtig")),
+        h("div", { class: "row" },
+          h("button", { class: "btn btn-primary", type: "button", onclick: () => ueben(k) }, "Nochmals üben"),
+          k ? h("button", { class: "btn", type: "button", onclick: () => lernen(k, 0) }, "Theorie wiederholen") : null,
+          h("button", { class: "btn", type: "button", onclick: startseite }, "Zur Übersicht"))));
+    }
+
+    if (!fragen.length) { startseite(); return; }
+    schritt();
+  }
+
+  // ---------- Probetest ----------
+  let timerId = null;
+  function stoppeTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
+
+  function note(punkte, max) {
+    const nk = M.probetest.notenschluessel;
+    if (Array.isArray(nk) && nk.length) {
+      const passend = nk.filter(e => punkte >= e.punkte).sort((a, b) => b.punkte - a.punkte)[0];
+      return passend ? passend.note : nk.reduce((a, b) => (a.punkte < b.punkte ? a : b)).note;
+    }
+    return Math.round((1 + 5 * punkte / max) * 4) / 4; // Standardformel, auf Viertelnoten
+  }
+
+  function probetestStart() {
+    const pt = M.probetest;
+    const widgets = pt.fragen.map(f => frageWidget(f, { sofortFeedback: false }));
+    const max = widgets.reduce((s, w) => s + w.max, 0);
+    let rest = (pt.minuten || 15) * 60;
+    const timer = h("span", { class: "timer", role: "timer", "aria-live": "off" });
+    const anzeigen = () => {
+      const m = Math.floor(rest / 60), s = rest % 60;
+      timer.textContent = `⏱ ${m}:${String(s).padStart(2, "0")}`;
+      timer.classList.toggle("knapp", rest <= 120);
+    };
+    anzeigen();
+    stoppeTimer();
+    timerId = setInterval(() => { rest--; anzeigen(); if (rest <= 0) { stoppeTimer(); abgeben(true); } }, 1000);
+
+    const abgeben = (zeitAbgelaufen = false) => {
+      stoppeTimer();
+      korrektur(widgets, max, zeitAbgelaufen);
+    };
+
+    zeige(h("div", { class: "stack" },
+      h("div", { class: "row between" },
+        h("button", { class: "btn btn-ghost", type: "button", onclick: () => { if (confirm("Probetest abbrechen?")) { stoppeTimer(); startseite(); } } }, "← Abbrechen"),
+        timer),
+      h("h1", {}, pt.titel || "Probetest"),
+      h("p", { class: "muted" }, `${max} Punkte · ${pt.minuten || 15} Minuten`),
+      widgets.map((w, i) => h("article", { class: "card" },
+        h("div", { class: "frage-kopf" }, h("span", {}, `Frage ${i + 1}`), h("span", {}, `${w.max} P`)), w.knoten)),
+      h("div", { class: "row end" },
+        h("button", { class: "btn btn-primary", type: "button", onclick: () => { if (confirm("Test abgeben? Danach kannst du nichts mehr ändern.")) abgeben(); } }, "Test abgeben"))));
+  }
+
+  function korrektur(widgets, max, zeitAbgelaufen) {
+    const offene = widgets.filter(w => w.auswerten().offen);
+    const fertigBtn = h("button", { class: "btn btn-primary", type: "button", disabled: offene.length > 0, onclick: () => resultat(widgets, max) }, "Note berechnen");
+    const status = h("p", { class: "muted", role: "status" });
+    const aktualisieren = () => {
+      const fehlend = offene.filter(w => !w.auswerten().bewertet).length;
+      fertigBtn.disabled = fehlend > 0;
+      status.textContent = fehlend ? `Noch ${fehlend} offene ${fehlend === 1 ? "Antwort" : "Antworten"} selbst bewerten.` : "Alles bewertet.";
+    };
+    widgets.forEach(w => w.sperren(aktualisieren));
+    aktualisieren();
+
+    const knoten = [...app.querySelectorAll("article.card")];
+    zeige(h("div", { class: "stack" },
+      sprechblase(zeitAbgelaufen ? "Die Zeit ist um! Schauen wir, wie es gelaufen ist." :
+        "Abgegeben! Bei den offenen Fragen vergleichst du jetzt deine Antwort mit der Lösung und gibst dir ehrlich Punkte.", { hopp: true }),
+      h("h1", {}, "Korrektur"),
+      knoten,
+      status,
+      h("div", { class: "row end" }, fertigBtn)));
+  }
+
+  function resultat(widgets, max) {
+    const punkte = widgets.reduce((s, w) => s + w.auswerten().punkte, 0);
+    const n = note(Math.floor(punkte), max);
+    fortschritt.tests.push({ punkte, max, note: n, datum: new Date().toISOString() });
+    fortschritt.tests = fortschritt.tests.slice(-20);
+    sichern();
+    const text = n >= 5.5 ? "Hervorragend! Du bist top vorbereitet." :
+      n >= 4.5 ? "Gut gemacht! Mit etwas Wiederholung schaffst du noch mehr." :
+      n >= 4 ? "Genügend. Übe die Kapitel, bei denen du Punkte verloren hast." :
+      "Das reicht noch nicht. Lies die Theorie nochmals und übe dann gezielt – du schaffst das!";
+    zeige(h("div", { class: "stack" },
+      sprechblase(text, { hopp: n >= 4.5 }),
+      h("article", { class: "card resultat" },
+        h("p", { class: "muted" }, "Dein Resultat"),
+        h("div", { class: "note-gross" }, `Note ${n.toFixed(2)}`),
+        h("p", {}, `${punkte} von ${max} Punkten`)),
+      h("div", { class: "row" },
+        h("button", { class: "btn btn-primary", type: "button", onclick: probetestStart }, "Nochmals versuchen"),
+        h("button", { class: "btn", type: "button", onclick: startseite }, "Zur Übersicht"))));
+  }
+
+  // ---------- Bereich Lehrperson ----------
+  const dlg = document.getElementById("lp-dialog");
+  const meldung = document.getElementById("lp-meldung");
+  const melde = (t, art) => { meldung.textContent = t; meldung.className = "lp-meldung " + (art || ""); };
+  document.getElementById("lp-btn").addEventListener("click", () => {
+    document.getElementById("lp-quelle").textContent = materialQuelle === "eigenes"
+      ? `Aktiv: eigenes Material «${M.titel}» (in diesem Browser gespeichert).`
+      : `Aktiv: Standardmaterial aus inhalt/thema.js («${M.titel}»).`;
+    melde("");
+    dlg.showModal();
+  });
+  document.getElementById("lp-datei").addEventListener("change", async (e) => {
+    const datei = e.target.files[0];
+    if (!datei) return;
+    try {
+      const daten = parseDatei(await datei.text());
+      const fehler = pruefeMaterial(daten);
+      if (fehler.length) { melde("Fehler im Material: " + fehler.slice(0, 5).join(" "), "fehler"); return; }
+      speicher.schreiben(K_MATERIAL, daten);
+      if (JSON.stringify(speicher.lesen(K_MATERIAL, null)) !== JSON.stringify(daten)) {
+        melde("Der Browser erlaubt kein Speichern. Ersetze stattdessen die Datei inhalt/thema.js.", "fehler"); return;
+      }
+      melde(`«${daten.titel}» geladen. Die App startet neu …`, "ok");
+      setTimeout(() => location.reload(), 900);
+    } catch (err) {
+      melde("Die Datei konnte nicht gelesen werden (kein gültiges JSON): " + err.message, "fehler");
+    } finally { e.target.value = ""; }
+  });
+  document.getElementById("lp-export").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(M, null, 2)], { type: "application/json" });
+    const a = h("a", { href: URL.createObjectURL(blob), download: "lernmaterial.json" });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  document.getElementById("lp-standard").addEventListener("click", () => {
+    if (!confirm("Eigenes Material entfernen und Standardmaterial aus inhalt/thema.js verwenden?")) return;
+    speicher.loeschen(K_MATERIAL); location.reload();
+  });
+  document.getElementById("lp-fortschritt").addEventListener("click", () => {
+    if (!confirm("Lernfortschritt für dieses Material in diesem Browser löschen?")) return;
+    speicher.loeschen(K_FORTSCHRITT);
+    fortschritt = { gelernt: {}, uebung: {}, tests: [] };
+    melde("Lernfortschritt gelöscht.", "ok");
+    startseite();
+  });
+
+  // ---------- Start ----------
+  document.getElementById("home-btn").addEventListener("click", () => { stoppeTimer(); startseite(); });
+  if (!M) {
+    zeige(h("div", { class: "hinweis-box" }, "Kein Lernmaterial gefunden. Prüfe die Datei inhalt/thema.js."));
+    return;
+  }
+  const fehlerStandard = pruefeMaterial(M);
+  document.title = `${M.titel} – Lernapp`;
+  document.getElementById("brand-titel").textContent = M.titel;
+  document.getElementById("brand-fach").textContent = [M.fach, M.stufe].filter(Boolean).join(" · ");
+  if (fehlerStandard.length) {
+    zeige(h("div", { class: "hinweis-box" }, h("strong", {}, "Fehler im Material: "), fehlerStandard.join(" ")));
+    return;
+  }
+  startseite();
+})();
