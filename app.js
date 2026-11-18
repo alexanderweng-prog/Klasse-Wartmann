@@ -1,5 +1,6 @@
 (() => {
   "use strict";
+  window.LernappVersion = "4";
 
   const { speicher, h, mischen, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL } = window.Lernapp;
 
@@ -414,6 +415,10 @@
     herunterladen(JSON.stringify(M, null, 2), "lernmaterial.json", "application/json");
   });
   document.getElementById("lp-editor").addEventListener("click", () => {
+    if (!window.LernEditor || window.LernEditor.version !== window.LernappVersion) {
+      melde("Der Editor konnte nicht geladen werden: Die Datei editor.js fehlt oder ist veraltet. Lade alle Dateien der App neu herunter und lade die Seite neu (Mac: Cmd + Shift + R, Windows: Ctrl + F5).", "fehler");
+      return;
+    }
     dlg.close();
     stoppeTimer();
     window.LernEditor.oeffnen(M, app, startseite);

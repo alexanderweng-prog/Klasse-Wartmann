@@ -537,5 +537,5 @@ window.LERNINHALT = ${JSON.stringify(sauber(), null, 2)};
     window.scrollTo(0, scrollY);
   }
 
-  window.LernEditor = { oeffnen };
+  window.LernEditor = { oeffnen, version: "4" };
 })();

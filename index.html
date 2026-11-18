@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lernapp</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <header class="topbar">
@@ -47,9 +47,25 @@
     </form>
   </dialog>
 
-  <script src="inhalt/thema.js"></script>
-  <script src="gemeinsam.js"></script>
-  <script src="editor.js"></script>
-  <script src="app.js"></script>
+  <script src="inhalt/thema.js?v=4"></script>
+  <script src="gemeinsam.js?v=4"></script>
+  <script src="editor.js?v=4"></script>
+  <script src="app.js?v=4"></script>
+  <script>
+    // Prüft, ob alle Programmdateien zur gleichen Version gehören
+    (function () {
+      var v = "4";
+      var ok = window.Lernapp && window.Lernapp.version === v &&
+               window.LernEditor && window.LernEditor.version === v &&
+               window.LernappVersion === v;
+      if (ok) return;
+      var d = document.createElement("div");
+      d.className = "hinweis-box versions-hinweis";
+      d.setAttribute("role", "alert");
+      d.textContent = "Achtung: Die Dateien der App passen nicht zusammen (alte Version im Zwischenspeicher oder Datei fehlt). " +
+        "Bitte die Seite neu laden (Mac: Cmd + Shift + R, Windows: Ctrl + F5). Hilft das nicht, alle Dateien neu herunterladen.";
+      document.body.insertBefore(d, document.body.firstChild);
+    })();
+  </script>
 </body>
 </html>
