@@ -130,31 +130,6 @@
       knopf(`+ ${name} hinzufügen`, () => { const n = neu(); arr.push(n); offen.add(n); geaendert(); zeichnen(); }, { klasse: "ed-neu" }));
   }
 
-  // ---------- Symbol-Auswahl für Kapitel ----------
-  const SYMBOLE = [
-    "🌐", "💻", "📱", "🖥️", "⌨️", "🖱️", "🖨️", "💾", "📡", "🛜", "🔌", "🔋",
-    "🤖", "🧠", "⚙️", "🧩", "🔢", "📊", "📈", "🗂️", "📁", "🔍", "🔒", "🔑",
-    "🛡️", "⚠️", "⭐", "💬", "📧", "📷", "🎬", "🎵", "🎮", "📰", "📚", "📘",
-    "✏️", "🧪", "🔬", "🌍", "⚡", "🚀", "🏃", "🏐", "🎨", "💡", "❓", "✅"
-  ];
-  function symbolWahl(k) {
-    const id = "ed-f" + (++feldNr);
-    const anzeige = h("span", { class: "ed-symbol-gross", "aria-hidden": "true" }, k.icon || "📘");
-    const ausloeser = h("button", { class: "btn ed-symbol-btn", type: "button", id, "aria-expanded": "false" }, anzeige, "ändern ▾");
-    const eigen = h("input", { type: "text", maxlength: 8, placeholder: "eigenes Emoji", "aria-label": "Eigenes Emoji eingeben" });
-    const waehlen = (sym) => { k.icon = sym; geaendert(); zeichnen(); };
-    eigen.addEventListener("change", () => { if (eigen.value.trim()) waehlen(eigen.value.trim()); });
-    const panel = h("div", { class: "ed-symbol-panel", hidden: true, role: "group", "aria-label": "Symbol wählen" },
-      h("div", { class: "ed-symbol-raster" }, SYMBOLE.map(sym =>
-        h("button", { type: "button", class: "ed-symbol" + (sym === k.icon ? " aktiv" : ""), "aria-label": `Symbol ${sym}`, onclick: () => waehlen(sym) }, sym))),
-      h("div", { class: "row" }, eigen, h("small", { class: "muted" }, "Windows: Win + . · Mac: Ctrl + Cmd + Leertaste")));
-    ausloeser.addEventListener("click", () => {
-      panel.hidden = !panel.hidden;
-      ausloeser.setAttribute("aria-expanded", String(!panel.hidden));
-    });
-    return h("div", { class: "ed-feld ed-symbol-feld" }, h("label", { for: id }, "Symbol"), ausloeser, panel);
-  }
-
   // ---------- Fragen ----------
   function typWechseln(f, neuerTyp) {
     const alt = f.typ;
@@ -347,7 +322,7 @@
         inhalt: (k) => h("div", { class: "stack" },
           h("div", { class: "ed-zwei ed-icon" },
             feld("Titel des Kapitels", k, "titel"),
-            symbolWahl(k)),
+            feld("Symbol", k, "icon", { hilfe: "ein Emoji, z. B. 🌐 ⭐ 🤖" })),
           h("h3", {}, "Lernkarten"),
           listeEditor(k.karten, {
             name: "Karte",

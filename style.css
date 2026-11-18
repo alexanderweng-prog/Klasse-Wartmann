@@ -201,23 +201,7 @@ dialog::backdrop { background: rgba(10, 15, 30, .5); }
 .ed-feld { display: grid; gap: 6px; grid-template-columns: minmax(0, 1fr); }
 .ed-feld > label, .ed-label { font-weight: 600; font-size: .92rem; }
 .ed-zwei { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
-.ed-icon { grid-template-columns: 1fr auto; align-items: start; }
-.ed-symbol-btn { display: inline-flex; align-items: center; gap: 8px; justify-self: start; }
-.ed-symbol-gross { font-size: 1.5rem; line-height: 1; }
-.ed-symbol-feld { position: relative; }
-.ed-symbol-panel {
-  position: absolute; right: 0; top: 100%; z-index: 6; width: min(340px, calc(100vw - 48px)); margin-top: 6px;
-  padding: 10px; display: grid; gap: 10px;
-  background: var(--surface); border: 1px solid var(--primary); border-radius: 12px; box-shadow: 0 8px 24px rgba(10, 15, 30, .2);
-}
-.ed-symbol-panel[hidden] { display: none; }
-.ed-symbol-raster { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
-.ed-symbol {
-  font-size: 1.4rem; aspect-ratio: 1; min-height: 44px; cursor: pointer;
-  border: 1px solid transparent; border-radius: 8px; background: var(--surface-2);
-}
-.ed-symbol:hover, .ed-symbol.aktiv { border-color: var(--primary); }
-.ed-symbol-panel input { flex: 1; min-width: 0; }
+.ed-icon { grid-template-columns: 1fr 140px; }
 .ed-liste { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
 .ed-eintrag, .ed-feld > * { min-width: 0; }
 .ed-eintrag { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
@@ -255,7 +239,6 @@ dialog::backdrop { background: rgba(10, 15, 30, .5); }
 .hinweis-box ul { margin: 8px 0 0; padding-left: 20px; }
 @media (max-width: 600px) {
   .ed-zwei, .ed-icon { grid-template-columns: 1fr; }
-  .ed-symbol-panel { left: 0; right: auto; }
   .ed-leiste { position: static; }
   .ed-bildzeile { flex-direction: column; }
   .ed-paar { flex-wrap: wrap; }
