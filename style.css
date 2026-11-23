@@ -265,3 +265,42 @@ dialog::backdrop { background: rgba(10, 15, 30, .5); }
 }
 .spiel-canvas:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
 .spiel-hilfe { text-align: center; font-size: .9rem; }
+
+/* Spielauswahl */
+.spiel-icons { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .92rem; color: var(--muted); }
+.spiel-wahl-raster { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.spiel-wahl {
+  font: inherit; color: var(--text); text-align: left; cursor: pointer;
+  display: grid; gap: 4px; padding: 18px; border-radius: var(--radius);
+  background: var(--surface); border: 2px solid var(--line); box-shadow: var(--shadow);
+  transition: border-color .15s, transform .15s;
+}
+.spiel-wahl:hover { border-color: var(--primary); transform: translateY(-2px); }
+.spiel-wahl:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.spiel-wahl-icon { font-size: 2.4rem; line-height: 1; }
+.spiel-wahl-name { font-weight: 800; font-size: 1.15rem; }
+.spiel-wahl-art { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); font-weight: 700; }
+.spiel-wahl-info { font-size: .88rem; color: var(--muted); margin-top: 4px; }
+@media (prefers-reduced-motion: reduce) { .spiel-wahl:hover { transform: none; } }
+
+/* Globis Stadt */
+.stadt-karte { padding: 10px; background: linear-gradient(#bfe3a5, #9ccf7c); border-color: #7fb35e; }
+.stadt-raster { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.stadt-feld {
+  aspect-ratio: 1; min-height: 44px; font-size: clamp(1.3rem, 6vw, 2.2rem); line-height: 1; cursor: pointer;
+  border: 1px dashed rgba(40, 80, 30, .35); border-radius: 6px; background: rgba(255, 255, 255, .18); padding: 0;
+}
+.stadt-feld.bebaut { border-style: solid; background: rgba(255, 255, 255, .35); }
+.stadt-feld:hover { background: rgba(255, 255, 255, .5); }
+.stadt-feld:focus-visible { outline: 3px solid var(--primary); outline-offset: 1px; }
+.stadt-shop { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+.stadt-gebaeude {
+  font: inherit; font-size: .85rem; color: var(--text); cursor: pointer; display: grid; justify-items: center; gap: 2px;
+  padding: 8px 4px; border-radius: 10px; border: 2px solid var(--line); background: var(--surface); min-height: 44px;
+}
+.stadt-gebaeude.aktiv { border-color: var(--primary); background: var(--surface-2); }
+.stadt-gebaeude[disabled] { opacity: .4; cursor: not-allowed; }
+.stadt-icon { font-size: 1.6rem; line-height: 1.1; }
+.stadt-preis { font-size: .78rem; color: var(--muted); }
+.ed-spiele { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; }
+.ed-spiele legend { font-weight: 600; font-size: .92rem; padding: 0 4px; }

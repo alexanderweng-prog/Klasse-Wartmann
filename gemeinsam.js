@@ -80,8 +80,9 @@
     });
     if (m.spiel) {
       const n = Number(m.spiel.fragenProRunde), s = Number(m.spiel.sekunden);
-      if (m.spiel.fragenProRunde !== undefined && !(n >= 1)) fehler.push("Lernspiel: «Richtige Antworten pro Flug» muss mindestens 1 sein.");
-      if (m.spiel.sekunden !== undefined && !(s >= 10 && s <= 120)) fehler.push("Lernspiel: Flugdauer muss zwischen 10 und 120 Sekunden liegen.");
+      if (m.spiel.fragenProRunde !== undefined && !(n >= 1)) fehler.push("Lernspiele: «Richtige Antworten pro Spielrunde» muss mindestens 1 sein.");
+      if (m.spiel.sekunden !== undefined && !(s >= 10 && s <= 120)) fehler.push("Lernspiele: Die Rundendauer muss zwischen 10 und 120 Sekunden liegen.");
+      if (Array.isArray(m.spiel.spiele) && !m.spiel.spiele.length) fehler.push("Lernspiele: Wähle mindestens ein Spiel aus.");
     }
     if (m.probetest) (m.probetest.fragen || []).forEach((f, i) => pruefeFrage(f, `Probetest, Frage ${i + 1}`));
     return fehler;
@@ -103,5 +104,5 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
-  window.Lernapp = { version: "5", speicher, h, mischen, TYPEN, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL: "lernapp.material" };
+  window.Lernapp = { version: "6", speicher, h, mischen, TYPEN, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL: "lernapp.material" };
 })();

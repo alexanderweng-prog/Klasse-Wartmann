@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  window.LernappVersion = "5";
+  window.LernappVersion = "6";
 
   const { speicher, h, mischen, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL } = window.Lernapp;
 
@@ -12,7 +12,6 @@
   const K_FORTSCHRITT = "lernapp.fortschritt." + hash(JSON.stringify(M ? M.titel + (M.kapitel || []).map(k => k.id).join() : ""));
   function hash(s) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) | 0; return (h >>> 0).toString(36); }
   let fortschritt = speicher.lesen(K_FORTSCHRITT, { gelernt: {}, uebung: {}, tests: [] });
-  fortschritt.spiel = fortschritt.spiel || { rekord: 0, paketeTotal: 0, fluege: 0 };
   const sichern = () => speicher.schreiben(K_FORTSCHRITT, fortschritt);
 
   // ---------- Hilfen ----------
@@ -84,12 +83,13 @@
 
     const alleUebungen = (M.uebungen || []).length;
     const spielFragen = spielPool().length;
-    const sp = fortschritt.spiel;
+    const scfg = spielEinstellungen();
     const spielKarte = spielFragen ? h("article", { class: "card spiel-karte" },
-      h("h3", {}, "🚀 Globi-Flug: Lernen & Spielen"),
-      h("p", {}, `Beantworte Fragen richtig und lade so Energie für einen Flug durchs Datennetz. ${spielEinstellungen().fragenProRunde === 1 ? "1 richtige Antwort" : spielEinstellungen().fragenProRunde + " richtige Antworten"} = 1 Flug.`),
-      sp.fluege ? h("p", { class: "muted" }, `Rekord: ${sp.rekord} Pakete in einem Flug · insgesamt ${sp.paketeTotal} Pakete in ${sp.fluege} Flügen`) : null,
-      h("button", { class: "btn btn-primary", type: "button", onclick: spielStart }, "Spiel starten")) : null;
+      h("h3", {}, "🎮 Lernen & Spielen"),
+      h("p", {}, `Beantworte Fragen richtig und verdiene dir eine Spielrunde: ${antworten(scfg.fragenProRunde)} = 1 Runde.`),
+      h("p", { class: "spiel-icons", "aria-label": "Spiele: " + scfg.spiele.map(id => SPIELE[id].name).join(", ") },
+        scfg.spiele.map(id => h("span", { title: SPIELE[id].name }, `${SPIELE[id].icon} ${SPIELE[id].name}`))),
+      h("button", { class: "btn btn-primary", type: "button", onclick: spielStart }, scfg.spiele.length > 1 ? "Spiel auswählen" : "Spiel starten")) : null;
     zeige(h("div", { class: "stack" },
       sprechblase(masko.begruessung || `Willkommen! Heute lernst du: ${M.titel}.`, { hopp: true }),
       h("h1", {}, M.titel),
@@ -305,37 +305,93 @@
     schritt();
   }
 
-  // ---------- Lernspiel «Globi-Flug» ----------
+  // ---------- Lernspiele ----------
   // Offene Fragen sind ausgeschlossen: Selbstbewertung liesse sich im Spiel zu leicht ausnutzen.
+  const SPIELE = {
+    flug: { name: "Globi-Flug", icon: "🚀", art: "Geschicklichkeit", einheit: "Pakete", text: "Gedrückt halten zum Steigen. Pakete sammeln, Viren ausweichen." },
+    faenger: { name: "Bewertungs-Fänger", icon: "⭐", art: "Geschicklichkeit", einheit: "Sterne", text: "Echte Bewertungen fangen, gefälschte meiden." },
+    jagd: { name: "Viren-Jagd", icon: "🦠", art: "Reaktion", einheit: "Viren", text: "Viren schnell antippen, Datenpakete in Ruhe lassen." },
+    stadt: { name: "Globis Stadt", icon: "🏗️", art: "Ruhig, ohne Zeitdruck", einheit: "Münzen", text: "Mit verdienten Münzen eine eigene Stadt bauen. Sie bleibt gespeichert." }
+  };
+  const GEBAEUDE = [
+    ["baum", "🌳", "Baum", 1], ["blumen", "🌷", "Blumen", 1], ["haus", "🏠", "Haus", 2], ["brunnen", "⛲", "Brunnen", 3],
+    ["laden", "🏪", "Laden", 3], ["funkmast", "📡", "Funkmast", 4], ["schule", "🏫", "Schule", 5], ["spital", "🏥", "Spital", 6],
+    ["rechenzentrum", "🖥️", "Rechenzentrum", 8], ["stadion", "🏟️", "Stadion", 10], ["schloss", "🏰", "Schloss", 15]
+  ].map(([id, icon, name, preis]) => ({ id, icon, name, preis }));
+  const STADT_FELDER = 30;
+
   const spielPool = () => (M.uebungen || []).filter(f => f.typ !== "offen");
   function spielEinstellungen() {
     const s = M.spiel || {};
+    const spiele = (Array.isArray(s.spiele) ? s.spiele : Object.keys(SPIELE)).filter(id => SPIELE[id]);
     return {
       fragenProRunde: Math.max(1, Math.round(Number(s.fragenProRunde) || 3)),
-      sekunden: Math.min(120, Math.max(10, Math.round(Number(s.sekunden) || 30)))
+      sekunden: Math.min(120, Math.max(10, Math.round(Number(s.sekunden) || 30))),
+      spiele: spiele.length ? spiele : Object.keys(SPIELE)
     };
+  }
+  function spielStand(id) {
+    fortschritt.spiele = fortschritt.spiele || {};
+    return (fortschritt.spiele[id] = fortschritt.spiele[id] || { rekord: 0, total: 0, runden: 0 });
+  }
+  function stadtStand() {
+    const st = (fortschritt.stadt = fortschritt.stadt || { muenzen: 0, felder: [] });
+    while (st.felder.length < STADT_FELDER) st.felder.push(null);
+    return st;
+  }
+  // alter Spielstand (nur Globi-Flug) übernehmen
+  if (fortschritt.spiel && !fortschritt.spiele) {
+    fortschritt.spiele = { flug: { rekord: fortschritt.spiel.rekord || 0, total: fortschritt.spiel.paketeTotal || 0, runden: fortschritt.spiel.fluege || 0 } };
+    delete fortschritt.spiel;
   }
   function figurQuelle() {
     if (masko.bild) return masko.bild;
     return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(PLATZHALTER_SVG.trim().replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" '));
   }
+  const antworten = (n) => n === 1 ? "1 richtige Antwort" : `${n} richtige Antworten`;
 
   function spielStart() {
     const cfg = spielEinstellungen();
+    if (cfg.spiele.length === 1) { spielSitzung(cfg.spiele[0]); return; }
+    const karten = cfg.spiele.map(id => {
+      const sp = SPIELE[id];
+      const st = id === "stadt" ? null : spielStand(id);
+      const stadt = id === "stadt" ? stadtStand() : null;
+      const info = st && st.runden ? `Rekord: ${st.rekord} ${sp.einheit}` :
+        stadt && stadt.felder.some(Boolean) ? `${stadt.felder.filter(Boolean).length} Gebäude gebaut` : "Noch nicht gespielt";
+      return h("button", { class: "spiel-wahl", type: "button", onclick: () => { fortschritt.letztesSpiel = id; sichern(); spielSitzung(id); } },
+        h("span", { class: "spiel-wahl-icon", "aria-hidden": "true" }, sp.icon),
+        h("span", { class: "spiel-wahl-name" }, sp.name),
+        h("span", { class: "spiel-wahl-art" }, sp.art),
+        h("span", { class: "spiel-wahl-text" }, sp.text),
+        h("span", { class: "spiel-wahl-info" }, info));
+    });
+    zeige(h("div", { class: "stack" },
+      h("div", { class: "row between" },
+        h("button", { class: "btn btn-ghost", type: "button", onclick: startseite }, "← Übersicht"),
+        h("span", { class: "muted" }, "Spiel wählen")),
+      sprechblase(`Welches Spiel möchtest du spielen? Für jede Runde brauchst du ${antworten(cfg.fragenProRunde)}.`, { hopp: true }),
+      h("div", { class: "spiel-wahl-raster" }, karten)));
+  }
+
+  function spielSitzung(id) {
+    const sp = SPIELE[id];
+    const cfg = spielEinstellungen();
     const pool = spielPool();
+    const istStadt = id === "stadt";
     let warteschlange = mischen(pool);
-    const sitzung = { energie: 0, richtig: 0, beantwortet: 0, pakete: 0, fluege: 0 };
+    const sitzung = { energie: 0, richtig: 0, beantwortet: 0, punkte: 0, runden: 0 };
 
     function energieAnzeige() {
       const n = cfg.fragenProRunde;
       return h("div", { class: "energie", role: "group", "aria-label": `Energie ${sitzung.energie} von ${n}` },
         h("span", { class: "energie-label" }, "⚡ Energie"),
         h("div", { class: "energie-zellen" }, Array.from({ length: n }, (_, i) => h("span", { class: i < sitzung.energie ? "voll" : "" }))),
-        h("span", { class: "muted" }, `📦 ${sitzung.pakete} Pakete`));
+        h("span", { class: "muted" }, istStadt ? `🪙 ${stadtStand().muenzen} Münzen` : `${sp.icon} ${sitzung.punkte} ${sp.einheit}`));
     }
     function kopf(text) {
       return h("div", { class: "row between" },
-        h("button", { class: "btn btn-ghost", type: "button", onclick: spielEnde }, "← Beenden"),
+        h("button", { class: "btn btn-ghost", type: "button", onclick: sitzungEnde }, "← Beenden"),
         h("span", { class: "muted" }, text));
     }
 
@@ -345,6 +401,7 @@
       const w = frageWidget(f, { sofortFeedback: false, optionenMischen: true });
       const feedback = h("div", {});
       const blaseBox = h("div", {});
+      const energieBox = h("div", {}, energieAnzeige());
       const weiter = h("button", { class: "btn btn-primary", type: "button", hidden: true }, "Weiter");
       const pruefen = h("button", { class: "btn btn-primary", type: "button", onclick: () => {
         const r = w.auswerten();
@@ -352,65 +409,113 @@
         pruefen.hidden = true;
         w.sperren();
         sitzung.beantwortet++;
-        if (r.richtig) { sitzung.richtig++; sitzung.energie++; }
-        else warteschlange.splice(Math.min(3, warteschlange.length), 0, f); // kommt bald nochmals
+        if (r.richtig) {
+          sitzung.richtig++; sitzung.energie++;
+          if (istStadt) { stadtStand().muenzen++; sitzung.punkte++; sichern(); }
+        } else warteschlange.splice(Math.min(3, warteschlange.length), 0, f); // kommt bald nochmals
         energieBox.replaceChildren(energieAnzeige());
+        const belohnung = istStadt ? "+1 Münze 🪙 " : "+1 Energie ⚡ ";
         feedback.replaceChildren(h("div", { class: "feedback " + (r.richtig ? "ok" : "nok") },
-          h("strong", {}, r.richtig ? "Richtig! +1 Energie ⚡ " : "Nicht ganz. Diese Frage kommt später nochmals. "), f.erklaerung || ""));
+          h("strong", {}, r.richtig ? "Richtig! " + belohnung : "Nicht ganz. Diese Frage kommt später nochmals. "), f.erklaerung || ""));
         const bereit = sitzung.energie >= cfg.fragenProRunde;
-        blaseBox.replaceChildren(sprechblase(bereit ? "Energie voll! Bereit zum Abheben?" : (r.richtig ? lob() : trost()), { klein: true, hopp: r.richtig }));
-        weiter.textContent = bereit ? "🚀 Flug starten!" : "Nächste Frage →";
-        weiter.onclick = bereit ? flug : frage;
+        blaseBox.replaceChildren(sprechblase(bereit ? (istStadt ? "Energie voll! Zeit zum Bauen!" : "Energie voll! Bereit zum Spielen?") : (r.richtig ? lob() : trost()), { klein: true, hopp: r.richtig }));
+        weiter.textContent = bereit ? `${sp.icon} ${istStadt ? "Zur Stadt" : sp.name + " starten"}!` : "Nächste Frage →";
+        weiter.onclick = bereit ? (istStadt ? stadt : runde) : frage;
         weiter.hidden = false;
         weiter.focus();
       } }, "Prüfen");
-      const energieBox = h("div", {}, energieAnzeige());
       zeige(h("div", { class: "stack" },
-        kopf(`Globi-Flug · ${sitzung.richtig} von ${sitzung.beantwortet} richtig`),
+        kopf(`${sp.icon} ${sp.name} · ${sitzung.richtig} von ${sitzung.beantwortet} richtig`),
         energieBox,
         h("article", { class: "card" }, w.knoten, feedback),
         blaseBox,
         h("div", { class: "row end" }, pruefen, weiter)));
     }
 
-    function flug() {
+    // Geschicklichkeitsspiele
+    function runde() {
       sitzung.energie -= cfg.fragenProRunde;
       const buehne = h("div", { class: "spiel-buehne" });
-      zeige(h("div", { class: "stack" }, kopf("Flug läuft …"), buehne,
-        h("p", { class: "muted spiel-hilfe" }, "Steuerung: Maus, Finger oder Leertaste gedrückt halten = steigen, loslassen = sinken.")));
-      window.LernSpiel.flug(buehne, { sekunden: cfg.sekunden, bild: figurQuelle() }).then(res => {
+      const hilfe = { flug: "Maus, Finger oder Leertaste gedrückt halten = steigen, loslassen = sinken.",
+        faenger: "Globi mit Maus oder Finger führen, oder mit den Pfeiltasten ← → bewegen.",
+        jagd: "Viren antippen oder anklicken. Mit der Tastatur: Ziffern 1–9 für die Bildschirme." }[id];
+      zeige(h("div", { class: "stack" }, kopf(`${sp.name} läuft …`), buehne, h("p", { class: "muted spiel-hilfe" }, hilfe)));
+      window.LernSpiel[id](buehne, { sekunden: cfg.sekunden, bild: figurQuelle() }).then(res => {
         if (res.abgebrochen) return;
-        sitzung.pakete += res.pakete; sitzung.fluege++;
-        const sp = fortschritt.spiel;
-        const neuerRekord = res.pakete > sp.rekord;
-        sp.rekord = Math.max(sp.rekord, res.pakete); sp.paketeTotal += res.pakete; sp.fluege++;
+        sitzung.punkte += res.punkte; sitzung.runden++;
+        const st = spielStand(id);
+        const neuerRekord = res.punkte > st.rekord && st.runden > 0;
+        st.rekord = Math.max(st.rekord, res.punkte); st.total += res.punkte; st.runden++;
         sichern();
-        const text = neuerRekord ? `Neuer Rekord: ${res.pakete} Pakete! Unglaublich!` :
-          res.leben <= 0 ? `Oh nein, die Viren haben mich erwischt! Trotzdem ${res.pakete} Pakete gesammelt.` :
-          `Gelandet! ${res.pakete} Pakete gesammelt.`;
+        const text = neuerRekord ? `Neuer Rekord: ${res.punkte} ${sp.einheit}! Unglaublich!` :
+          res.leben <= 0 ? `Oh nein, keine Leben mehr! Trotzdem ${res.punkte} ${sp.einheit}.` :
+          `Geschafft! ${res.punkte} ${sp.einheit}.`;
         zeige(h("div", { class: "stack" },
           sprechblase(text + " Jetzt wieder Energie sammeln!", { hopp: true }),
           h("article", { class: "card resultat" },
-            h("p", { class: "muted" }, "Dieser Flug"),
-            h("div", { class: "note-gross" }, `📦 ${res.pakete}`),
-            h("p", {}, `Rekord: ${sp.rekord} · in dieser Runde total: ${sitzung.pakete}`)),
+            h("p", { class: "muted" }, "Diese Runde"),
+            h("div", { class: "note-gross" }, `${sp.icon} ${res.punkte}`),
+            h("p", {}, `Rekord: ${st.rekord} · in diesem Spiel total: ${sitzung.punkte} ${sp.einheit}`)),
           h("div", { class: "row" },
             h("button", { class: "btn btn-primary", type: "button", onclick: frage }, "Weiter Fragen beantworten"),
-            h("button", { class: "btn", type: "button", onclick: spielEnde }, "Spiel beenden"))));
+            h("button", { class: "btn", type: "button", onclick: sitzungEnde }, "Spiel beenden"))));
       });
     }
 
-    function spielEnde() {
+    // Ruhiges Bauspiel
+    let gewaehlt = null;
+    function stadt() {
+      sitzung.energie = 0; sitzung.runden++;
+      const st = stadtStand();
+      const wert = st.felder.reduce((s, idx) => s + ((GEBAEUDE.find(g => g.id === idx) || {}).preis || 0), 0);
+      const meldung = h("p", { class: "muted", role: "status" },
+        gewaehlt === "abriss" ? "Tippe auf ein Gebäude, um es abzureissen (ohne Rückgabe der Münzen)." :
+        gewaehlt ? `Tippe auf ein freies Feld, um ${GEBAEUDE.find(g => g.id === gewaehlt).name} zu bauen.` : "Wähle unten ein Gebäude.");
+      const shop = h("div", { class: "stadt-shop", role: "group", "aria-label": "Gebäude wählen" },
+        GEBAEUDE.map(g => h("button", {
+          type: "button", class: "stadt-gebaeude" + (gewaehlt === g.id ? " aktiv" : ""), disabled: st.muenzen < g.preis,
+          "aria-pressed": String(gewaehlt === g.id), onclick: () => { gewaehlt = g.id; stadtNeu(); }
+        }, h("span", { class: "stadt-icon", "aria-hidden": "true" }, g.icon), h("span", {}, g.name), h("span", { class: "stadt-preis" }, `🪙 ${g.preis}`))),
+        h("button", { type: "button", class: "stadt-gebaeude" + (gewaehlt === "abriss" ? " aktiv" : ""), "aria-pressed": String(gewaehlt === "abriss"),
+          onclick: () => { gewaehlt = "abriss"; stadtNeu(); } }, h("span", { class: "stadt-icon", "aria-hidden": "true" }, "🧹"), h("span", {}, "Abreissen"), h("span", { class: "stadt-preis" }, "gratis")));
+      const raster = h("div", { class: "stadt-raster" }, st.felder.map((idx, i) => {
+        const g = GEBAEUDE.find(x => x.id === idx);
+        return h("button", { type: "button", class: "stadt-feld" + (g ? " bebaut" : ""), "aria-label": `Feld ${i + 1}: ${g ? g.name : "frei"}`,
+          onclick: () => {
+            if (gewaehlt === "abriss") { if (g) { st.felder[i] = null; sichern(); stadtNeu(); } return; }
+            const neu = GEBAEUDE.find(x => x.id === gewaehlt);
+            if (!neu || g) return;
+            if (st.muenzen < neu.preis) return;
+            st.muenzen -= neu.preis; st.felder[i] = neu.id; sichern();
+            if (st.muenzen < neu.preis) gewaehlt = null;
+            stadtNeu();
+          } }, g ? g.icon : "");
+      }));
+      zeige(h("div", { class: "stack" },
+        kopf("Globis Stadt"),
+        sprechblase(st.felder.every(Boolean) ? "Wow, die Stadt ist voll! Du kannst Gebäude abreissen und neu planen." :
+          `Du hast ${st.muenzen} ${st.muenzen === 1 ? "Münze" : "Münzen"}. Was bauen wir?`, { klein: true }),
+        h("div", { class: "row between" }, h("strong", {}, `🪙 ${st.muenzen} Münzen`), h("span", { class: "muted" }, `Stadtwert: ${wert}`)),
+        h("div", { class: "card stadt-karte" }, raster),
+        meldung,
+        shop,
+        h("div", { class: "row" },
+          h("button", { class: "btn btn-primary", type: "button", onclick: () => { gewaehlt = null; frage(); } }, "Weiter Fragen beantworten"),
+          h("button", { class: "btn", type: "button", onclick: sitzungEnde }, "Spiel beenden"))));
+    }
+    function stadtNeu() { const y = window.scrollY; sitzung.runden--; stadt(); window.scrollTo(0, y); }
+
+    function sitzungEnde() {
       window.LernSpiel.stopp();
       const quote = sitzung.beantwortet ? Math.round(100 * sitzung.richtig / sitzung.beantwortet) : 0;
       zeige(h("div", { class: "stack" },
         sprechblase(sitzung.beantwortet ? `Gut gespielt! Du hast ${sitzung.richtig} von ${sitzung.beantwortet} Fragen richtig beantwortet (${quote} %).` : "Schade, dass du schon gehst. Bis zum nächsten Mal!", { hopp: true }),
         h("article", { class: "card resultat" },
-          h("p", { class: "muted" }, "Deine Spielrunde"),
-          h("div", { class: "note-gross" }, `📦 ${sitzung.pakete}`),
-          h("p", {}, `${sitzung.fluege} ${sitzung.fluege === 1 ? "Flug" : "Flüge"} · ${sitzung.richtig} richtige Antworten`)),
+          h("p", { class: "muted" }, `${sp.icon} ${sp.name}`),
+          h("div", { class: "note-gross" }, istStadt ? `🪙 ${sitzung.punkte}` : `${sp.icon} ${sitzung.punkte}`),
+          h("p", {}, istStadt ? `${sitzung.punkte} Münzen verdient` : `${sitzung.runden} ${sitzung.runden === 1 ? "Runde" : "Runden"} · ${sitzung.richtig} richtige Antworten`)),
         h("div", { class: "row" },
-          h("button", { class: "btn btn-primary", type: "button", onclick: spielStart }, "Neues Spiel"),
+          h("button", { class: "btn btn-primary", type: "button", onclick: spielStart }, "Anderes Spiel wählen"),
           h("button", { class: "btn", type: "button", onclick: startseite }, "Zur Übersicht"))));
     }
 

@@ -25,7 +25,8 @@ window.LERNINHALT = {
 
   "spiel": {
     "fragenProRunde": 3,
-    "sekunden": 30
+    "sekunden": 30,
+    "spiele": ["flug", "faenger", "jagd", "stadt"]
   },
 
   "kapitel": [
