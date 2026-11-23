@@ -23,6 +23,11 @@ window.LERNINHALT = {
     "trost": ["Fast! Lies die Erklärung nochmals.", "Kein Problem, aus Fehlern lernt man.", "Knapp daneben – probier's beim nächsten Mal."]
   },
 
+  "spiel": {
+    "fragenProRunde": 3,
+    "sekunden": 30
+  },
+
   "kapitel": [
     {
       "id": "internet",

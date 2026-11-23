@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  window.LernappVersion = "4";
+  window.LernappVersion = "5";
 
   const { speicher, h, mischen, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL } = window.Lernapp;
 
@@ -12,6 +12,7 @@
   const K_FORTSCHRITT = "lernapp.fortschritt." + hash(JSON.stringify(M ? M.titel + (M.kapitel || []).map(k => k.id).join() : ""));
   function hash(s) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) | 0; return (h >>> 0).toString(36); }
   let fortschritt = speicher.lesen(K_FORTSCHRITT, { gelernt: {}, uebung: {}, tests: [] });
+  fortschritt.spiel = fortschritt.spiel || { rekord: 0, paketeTotal: 0, fluege: 0 };
   const sichern = () => speicher.schreiben(K_FORTSCHRITT, fortschritt);
 
   // ---------- Hilfen ----------
@@ -82,12 +83,20 @@
       h("button", { class: "btn btn-primary", type: "button", onclick: probetestStart }, "Probetest starten")) : null;
 
     const alleUebungen = (M.uebungen || []).length;
+    const spielFragen = spielPool().length;
+    const sp = fortschritt.spiel;
+    const spielKarte = spielFragen ? h("article", { class: "card spiel-karte" },
+      h("h3", {}, "🚀 Globi-Flug: Lernen & Spielen"),
+      h("p", {}, `Beantworte Fragen richtig und lade so Energie für einen Flug durchs Datennetz. ${spielEinstellungen().fragenProRunde === 1 ? "1 richtige Antwort" : spielEinstellungen().fragenProRunde + " richtige Antworten"} = 1 Flug.`),
+      sp.fluege ? h("p", { class: "muted" }, `Rekord: ${sp.rekord} Pakete in einem Flug · insgesamt ${sp.paketeTotal} Pakete in ${sp.fluege} Flügen`) : null,
+      h("button", { class: "btn btn-primary", type: "button", onclick: spielStart }, "Spiel starten")) : null;
     zeige(h("div", { class: "stack" },
       sprechblase(masko.begruessung || `Willkommen! Heute lernst du: ${M.titel}.`, { hopp: true }),
       h("h1", {}, M.titel),
       h("div", { class: "grid" }, karten),
       alleUebungen ? h("div", { class: "row" },
         h("button", { class: "btn", type: "button", onclick: () => ueben(null) }, `🔀 Gemischt üben (alle ${alleUebungen} Fragen)`)) : null,
+      spielKarte,
       probe));
   }
 
@@ -296,6 +305,118 @@
     schritt();
   }
 
+  // ---------- Lernspiel «Globi-Flug» ----------
+  // Offene Fragen sind ausgeschlossen: Selbstbewertung liesse sich im Spiel zu leicht ausnutzen.
+  const spielPool = () => (M.uebungen || []).filter(f => f.typ !== "offen");
+  function spielEinstellungen() {
+    const s = M.spiel || {};
+    return {
+      fragenProRunde: Math.max(1, Math.round(Number(s.fragenProRunde) || 3)),
+      sekunden: Math.min(120, Math.max(10, Math.round(Number(s.sekunden) || 30)))
+    };
+  }
+  function figurQuelle() {
+    if (masko.bild) return masko.bild;
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(PLATZHALTER_SVG.trim().replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" '));
+  }
+
+  function spielStart() {
+    const cfg = spielEinstellungen();
+    const pool = spielPool();
+    let warteschlange = mischen(pool);
+    const sitzung = { energie: 0, richtig: 0, beantwortet: 0, pakete: 0, fluege: 0 };
+
+    function energieAnzeige() {
+      const n = cfg.fragenProRunde;
+      return h("div", { class: "energie", role: "group", "aria-label": `Energie ${sitzung.energie} von ${n}` },
+        h("span", { class: "energie-label" }, "⚡ Energie"),
+        h("div", { class: "energie-zellen" }, Array.from({ length: n }, (_, i) => h("span", { class: i < sitzung.energie ? "voll" : "" }))),
+        h("span", { class: "muted" }, `📦 ${sitzung.pakete} Pakete`));
+    }
+    function kopf(text) {
+      return h("div", { class: "row between" },
+        h("button", { class: "btn btn-ghost", type: "button", onclick: spielEnde }, "← Beenden"),
+        h("span", { class: "muted" }, text));
+    }
+
+    function frage() {
+      if (!warteschlange.length) warteschlange = mischen(pool);
+      const f = warteschlange.shift();
+      const w = frageWidget(f, { sofortFeedback: false, optionenMischen: true });
+      const feedback = h("div", {});
+      const blaseBox = h("div", {});
+      const weiter = h("button", { class: "btn btn-primary", type: "button", hidden: true }, "Weiter");
+      const pruefen = h("button", { class: "btn btn-primary", type: "button", onclick: () => {
+        const r = w.auswerten();
+        if (!r.beantwortet) { blaseBox.replaceChildren(sprechblase("Wähle zuerst eine Antwort.", { klein: true })); return; }
+        pruefen.hidden = true;
+        w.sperren();
+        sitzung.beantwortet++;
+        if (r.richtig) { sitzung.richtig++; sitzung.energie++; }
+        else warteschlange.splice(Math.min(3, warteschlange.length), 0, f); // kommt bald nochmals
+        energieBox.replaceChildren(energieAnzeige());
+        feedback.replaceChildren(h("div", { class: "feedback " + (r.richtig ? "ok" : "nok") },
+          h("strong", {}, r.richtig ? "Richtig! +1 Energie ⚡ " : "Nicht ganz. Diese Frage kommt später nochmals. "), f.erklaerung || ""));
+        const bereit = sitzung.energie >= cfg.fragenProRunde;
+        blaseBox.replaceChildren(sprechblase(bereit ? "Energie voll! Bereit zum Abheben?" : (r.richtig ? lob() : trost()), { klein: true, hopp: r.richtig }));
+        weiter.textContent = bereit ? "🚀 Flug starten!" : "Nächste Frage →";
+        weiter.onclick = bereit ? flug : frage;
+        weiter.hidden = false;
+        weiter.focus();
+      } }, "Prüfen");
+      const energieBox = h("div", {}, energieAnzeige());
+      zeige(h("div", { class: "stack" },
+        kopf(`Globi-Flug · ${sitzung.richtig} von ${sitzung.beantwortet} richtig`),
+        energieBox,
+        h("article", { class: "card" }, w.knoten, feedback),
+        blaseBox,
+        h("div", { class: "row end" }, pruefen, weiter)));
+    }
+
+    function flug() {
+      sitzung.energie -= cfg.fragenProRunde;
+      const buehne = h("div", { class: "spiel-buehne" });
+      zeige(h("div", { class: "stack" }, kopf("Flug läuft …"), buehne,
+        h("p", { class: "muted spiel-hilfe" }, "Steuerung: Maus, Finger oder Leertaste gedrückt halten = steigen, loslassen = sinken.")));
+      window.LernSpiel.flug(buehne, { sekunden: cfg.sekunden, bild: figurQuelle() }).then(res => {
+        if (res.abgebrochen) return;
+        sitzung.pakete += res.pakete; sitzung.fluege++;
+        const sp = fortschritt.spiel;
+        const neuerRekord = res.pakete > sp.rekord;
+        sp.rekord = Math.max(sp.rekord, res.pakete); sp.paketeTotal += res.pakete; sp.fluege++;
+        sichern();
+        const text = neuerRekord ? `Neuer Rekord: ${res.pakete} Pakete! Unglaublich!` :
+          res.leben <= 0 ? `Oh nein, die Viren haben mich erwischt! Trotzdem ${res.pakete} Pakete gesammelt.` :
+          `Gelandet! ${res.pakete} Pakete gesammelt.`;
+        zeige(h("div", { class: "stack" },
+          sprechblase(text + " Jetzt wieder Energie sammeln!", { hopp: true }),
+          h("article", { class: "card resultat" },
+            h("p", { class: "muted" }, "Dieser Flug"),
+            h("div", { class: "note-gross" }, `📦 ${res.pakete}`),
+            h("p", {}, `Rekord: ${sp.rekord} · in dieser Runde total: ${sitzung.pakete}`)),
+          h("div", { class: "row" },
+            h("button", { class: "btn btn-primary", type: "button", onclick: frage }, "Weiter Fragen beantworten"),
+            h("button", { class: "btn", type: "button", onclick: spielEnde }, "Spiel beenden"))));
+      });
+    }
+
+    function spielEnde() {
+      window.LernSpiel.stopp();
+      const quote = sitzung.beantwortet ? Math.round(100 * sitzung.richtig / sitzung.beantwortet) : 0;
+      zeige(h("div", { class: "stack" },
+        sprechblase(sitzung.beantwortet ? `Gut gespielt! Du hast ${sitzung.richtig} von ${sitzung.beantwortet} Fragen richtig beantwortet (${quote} %).` : "Schade, dass du schon gehst. Bis zum nächsten Mal!", { hopp: true }),
+        h("article", { class: "card resultat" },
+          h("p", { class: "muted" }, "Deine Spielrunde"),
+          h("div", { class: "note-gross" }, `📦 ${sitzung.pakete}`),
+          h("p", {}, `${sitzung.fluege} ${sitzung.fluege === 1 ? "Flug" : "Flüge"} · ${sitzung.richtig} richtige Antworten`)),
+        h("div", { class: "row" },
+          h("button", { class: "btn btn-primary", type: "button", onclick: spielStart }, "Neues Spiel"),
+          h("button", { class: "btn", type: "button", onclick: startseite }, "Zur Übersicht"))));
+    }
+
+    frage();
+  }
+
   // ---------- Probetest ----------
   let timerId = null;
   function stoppeTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
@@ -436,7 +557,7 @@
   });
 
   // ---------- Start ----------
-  document.getElementById("home-btn").addEventListener("click", () => { stoppeTimer(); startseite(); });
+  document.getElementById("home-btn").addEventListener("click", () => { stoppeTimer(); if (window.LernSpiel) window.LernSpiel.stopp(); startseite(); });
   if (!M) {
     zeige(h("div", { class: "hinweis-box" }, "Kein Lernmaterial gefunden. Prüfe die Datei inhalt/thema.js."));
     return;

@@ -21,6 +21,7 @@
     m.kapitel = Array.isArray(m.kapitel) ? m.kapitel : [];
     m.kapitel.forEach(k => { k.id = k.id || neueId(); k.karten = Array.isArray(k.karten) ? k.karten : []; });
     m.uebungen = Array.isArray(m.uebungen) ? m.uebungen : [];
+    m.spiel = Object.assign({ fragenProRunde: 3, sekunden: 30 }, m.spiel || {});
     if (m.probetest) m.probetest.fragen = Array.isArray(m.probetest.fragen) ? m.probetest.fragen : [];
     return m;
   }
@@ -302,7 +303,13 @@
               knopf("Bild entfernen", () => { mk.bild = ""; bildPfad.querySelector("input").value = ""; zeigeVorschau(); geaendert(); })))),
         feld("Begrüssung", mk, "begruessung", { typ: "textarea", zeilen: 2 }),
         zeilenFeld("Lob (ein Spruch pro Zeile)", mk, "lob", "Zufällig bei richtigen Antworten."),
-        zeilenFeld("Trost (ein Spruch pro Zeile)", mk, "trost", "Zufällig bei falschen Antworten."))
+        zeilenFeld("Trost (ein Spruch pro Zeile)", mk, "trost", "Zufällig bei falschen Antworten.")),
+      h("section", { class: "card stack" },
+        h("h2", {}, "Lernspiel «Globi-Flug»"),
+        h("p", { class: "muted" }, "Das Spiel nutzt die Übungsfragen (ohne offene Fragen). Für jeden Flug müssen zuerst Fragen richtig beantwortet werden."),
+        h("div", { class: "ed-zwei" },
+          feld("Richtige Antworten pro Flug", M.spiel, "fragenProRunde", { typ: "number", min: 1, step: 1, hilfe: "Empfohlen: 3 bis 5" }),
+          feld("Flugdauer in Sekunden", M.spiel, "sekunden", { typ: "number", min: 10, step: 5, hilfe: "10 bis 120 Sekunden" })))
     ];
   }
 
@@ -537,5 +544,5 @@ window.LERNINHALT = ${JSON.stringify(sauber(), null, 2)};
     window.scrollTo(0, scrollY);
   }
 
-  window.LernEditor = { oeffnen, version: "4" };
+  window.LernEditor = { oeffnen, version: "5" };
 })();
