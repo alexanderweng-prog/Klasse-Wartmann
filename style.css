@@ -304,3 +304,21 @@ dialog::backdrop { background: rgba(10, 15, 30, .5); }
 .stadt-preis { font-size: .78rem; color: var(--muted); }
 .ed-spiele { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; }
 .ed-spiele legend { font-weight: 600; font-size: .92rem; padding: 0 4px; }
+
+/* Begleiter (Hund) */
+.figuren { display: flex; align-items: flex-end; gap: 0; flex: 0 0 auto; }
+.begleiter-figur { position: relative; width: 58px; height: 58px; margin-left: -8px; flex: 0 0 auto; }
+.begleiter-figur svg, .begleiter-figur img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.maskottchen.klein .begleiter-figur { width: 42px; height: 42px; }
+.hund-schwanz { transform-origin: 30px 90px; animation: wedeln 1.2s ease-in-out infinite; }
+.begleiter-figur.freut .hund-schwanz { animation-duration: .25s; }
+.begleiter-figur.freut { animation: hopp .5s ease .1s; }
+@keyframes wedeln { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(10deg); } }
+.wuff {
+  position: absolute; top: -18px; right: -14px; font-size: .72rem; font-weight: 800; color: var(--primary);
+  background: var(--surface); border: 2px solid var(--primary); border-radius: 10px; padding: 1px 6px; white-space: nowrap;
+}
+.spiel-wahl.zuletzt { border-color: var(--accent); }
+.ed-bild-klein { width: 90px; height: 90px; }
+@media (max-width: 520px) { .begleiter-figur { width: 46px; height: 46px; } }
+@media (prefers-reduced-motion: reduce) { .hund-schwanz, .begleiter-figur.freut { animation: none; } }

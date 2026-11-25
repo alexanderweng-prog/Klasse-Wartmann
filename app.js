@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  window.LernappVersion = "6";
+  window.LernappVersion = "7";
 
   const { speicher, h, mischen, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL } = window.Lernapp;
 
@@ -45,11 +45,49 @@
     } else box.innerHTML = PLATZHALTER_SVG;
     return box;
   }
+  // ---------- Begleiter (Hund) ----------
+  // Eigene, neutrale Zeichnung. Eigenes Bild: begleiter.bild im Material.
+  const begl = (M && M.begleiter) || {};
+  const begleiterAn = begl.zeigen !== false;
+  const HUND_SVG = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Hund">
+      <ellipse cx="58" cy="113" rx="36" ry="5" fill="#000" opacity=".12"/>
+      <path class="hund-schwanz" d="M30 90 Q12 80 15 60" stroke="#c98b4f" stroke-width="8" fill="none" stroke-linecap="round"/>
+      <ellipse cx="38" cy="104" rx="13" ry="7" fill="#d9a25f"/>
+      <ellipse cx="50" cy="90" rx="26" ry="19" fill="#e8b878"/>
+      <ellipse cx="67" cy="86" rx="12" ry="15" fill="#f6e3c3"/>
+      <rect x="58" y="90" width="10" height="20" rx="5" fill="#e8b878"/>
+      <rect x="71" y="90" width="10" height="20" rx="5" fill="#e8b878"/>
+      <ellipse cx="63" cy="110" rx="7" ry="4" fill="#f6e3c3"/><ellipse cx="76" cy="110" rx="7" ry="4" fill="#f6e3c3"/>
+      <circle cx="74" cy="52" r="22" fill="#e8b878"/>
+      <path d="M58 70 Q72 79 88 69" stroke="#d32f2f" stroke-width="6" fill="none" stroke-linecap="round"/>
+      <circle cx="73" cy="79" r="4.5" fill="#f5b83d" stroke="#b9850f" stroke-width="1"/>
+      <ellipse cx="90" cy="60" rx="14" ry="10" fill="#f6e3c3"/>
+      <ellipse cx="101" cy="55" rx="5.5" ry="4.5" fill="#1c2233"/>
+      <path d="M91 67 Q95 71 100 66" stroke="#1c2233" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M93 69 Q96 79 99 68" fill="#ef6f7a"/>
+      <circle cx="80" cy="45" r="4.2" fill="#1c2233"/><circle cx="81.4" cy="43.6" r="1.4" fill="#fff"/>
+      <path d="M62 32 Q46 34 50 64 Q60 62 67 43 Z" fill="#a8693a"/>
+    </svg>`;
+  const hundQuelle = () => begl.bild || "data:image/svg+xml;charset=utf-8," + encodeURIComponent(HUND_SVG.trim());
+  function hundFigur(freut) {
+    const box = h("div", { class: "begleiter-figur" + (freut ? " freut" : "") });
+    const svg = () => { box.innerHTML = HUND_SVG; };
+    if (begl.bild) {
+      const img = h("img", { src: begl.bild, alt: begl.name || "Hund" });
+      img.addEventListener("error", svg, { once: true });
+      box.append(img);
+    } else svg();
+    if (freut) box.append(h("span", { class: "wuff", "aria-hidden": "true" }, "Wuff!"));
+    return box;
+  }
+
   function sprechblase(text, { klein = false, hopp = false } = {}) {
     const f = figur();
     if (hopp) f.classList.add("hopp");
+    const figuren = begleiterAn ? h("div", { class: "figuren" }, f, hundFigur(hopp)) : f;
     return h("div", { class: "maskottchen" + (klein ? " klein" : ""), "aria-live": "polite" },
-      f, h("div", { class: "blase" }, h("strong", {}, masko.name || "Tipp"), text));
+      figuren, h("div", { class: "blase" }, h("strong", {}, masko.name || "Tipp"), text));
   }
 
   // ---------- Startseite ----------
@@ -316,9 +354,14 @@
   const GEBAEUDE = [
     ["baum", "🌳", "Baum", 1], ["blumen", "🌷", "Blumen", 1], ["haus", "🏠", "Haus", 2], ["brunnen", "⛲", "Brunnen", 3],
     ["laden", "🏪", "Laden", 3], ["funkmast", "📡", "Funkmast", 4], ["schule", "🏫", "Schule", 5], ["spital", "🏥", "Spital", 6],
-    ["rechenzentrum", "🖥️", "Rechenzentrum", 8], ["stadion", "🏟️", "Stadion", 10], ["schloss", "🏰", "Schloss", 15]
+    ["hundepark", "🐕", "Hundepark", 4], ["rechenzentrum", "🖥️", "Rechenzentrum", 8], ["stadion", "🏟️", "Stadion", 10], ["schloss", "🏰", "Schloss", 15]
   ].map(([id, icon, name, preis]) => ({ id, icon, name, preis }));
   const STADT_FELDER = 30;
+  const STUFEN = {
+    leicht: { name: "Leicht", icon: "🟢", text: "Viren bleiben länger sichtbar, nur selten ein Datenpaket." },
+    mittel: { name: "Mittel", icon: "🟡", text: "Schneller und mehr Datenpakete als Falle." },
+    schwer: { name: "Schwer", icon: "🔴", text: "16 Bildschirme, sehr schnell, viele Datenpakete." }
+  };
 
   const spielPool = () => (M.uebungen || []).filter(f => f.typ !== "offen");
   function spielEinstellungen() {
@@ -355,9 +398,11 @@
     if (cfg.spiele.length === 1) { spielSitzung(cfg.spiele[0]); return; }
     const karten = cfg.spiele.map(id => {
       const sp = SPIELE[id];
-      const st = id === "stadt" ? null : spielStand(id);
+      const st = id === "stadt" || id === "jagd" ? null : spielStand(id);
       const stadt = id === "stadt" ? stadtStand() : null;
-      const info = st && st.runden ? `Rekord: ${st.rekord} ${sp.einheit}` :
+      const jagdRekorde = id === "jagd" ? Object.keys(STUFEN).filter(k => spielStand("jagd-" + k).runden).map(k => `${STUFEN[k].name} ${spielStand("jagd-" + k).rekord}`) : [];
+      const info = jagdRekorde.length ? `Rekord: ${jagdRekorde.join(" · ")}` :
+        st && st.runden ? `Rekord: ${st.rekord} ${sp.einheit}` :
         stadt && stadt.felder.some(Boolean) ? `${stadt.felder.filter(Boolean).length} Gebäude gebaut` : "Noch nicht gespielt";
       return h("button", { class: "spiel-wahl", type: "button", onclick: () => { fortschritt.letztesSpiel = id; sichern(); spielSitzung(id); } },
         h("span", { class: "spiel-wahl-icon", "aria-hidden": "true" }, sp.icon),
@@ -381,6 +426,25 @@
     const istStadt = id === "stadt";
     let warteschlange = mischen(pool);
     const sitzung = { energie: 0, richtig: 0, beantwortet: 0, punkte: 0, runden: 0 };
+    let stufe = fortschritt.jagdStufe && STUFEN[fortschritt.jagdStufe] ? fortschritt.jagdStufe : "mittel";
+    const rekordId = () => id === "jagd" ? "jagd-" + stufe : id;
+
+    function stufenWahl(danach) {
+      zeige(h("div", { class: "stack" },
+        h("div", { class: "row between" },
+          h("button", { class: "btn btn-ghost", type: "button", onclick: spielStart }, "← Spiel wählen"),
+          h("span", { class: "muted" }, `${sp.icon} ${sp.name}`)),
+        sprechblase("Wie schwer soll die Viren-Jagd sein? Du kannst die Stufe später wieder ändern.", { klein: true }),
+        h("div", { class: "spiel-wahl-raster" }, Object.entries(STUFEN).map(([k, v]) => {
+          const r = spielStand("jagd-" + k);
+          return h("button", { class: "spiel-wahl" + (k === stufe ? " zuletzt" : ""), type: "button",
+            onclick: () => { stufe = k; fortschritt.jagdStufe = k; sichern(); danach(); } },
+            h("span", { class: "spiel-wahl-icon", "aria-hidden": "true" }, v.icon),
+            h("span", { class: "spiel-wahl-name" }, v.name),
+            h("span", { class: "spiel-wahl-text" }, v.text),
+            h("span", { class: "spiel-wahl-info" }, r.runden ? `Rekord: ${r.rekord} Viren` : "Noch nicht gespielt"));
+        }))));
+    }
 
     function energieAnzeige() {
       const n = cfg.fragenProRunde;
@@ -438,12 +502,12 @@
       const buehne = h("div", { class: "spiel-buehne" });
       const hilfe = { flug: "Maus, Finger oder Leertaste gedrückt halten = steigen, loslassen = sinken.",
         faenger: "Globi mit Maus oder Finger führen, oder mit den Pfeiltasten ← → bewegen.",
-        jagd: "Viren antippen oder anklicken. Mit der Tastatur: Ziffern 1–9 für die Bildschirme." }[id];
+        jagd: stufe === "schwer" ? "Viren antippen oder anklicken." : "Viren antippen oder anklicken. Mit der Tastatur: Ziffern 1–9 für die Bildschirme." }[id];
       zeige(h("div", { class: "stack" }, kopf(`${sp.name} läuft …`), buehne, h("p", { class: "muted spiel-hilfe" }, hilfe)));
-      window.LernSpiel[id](buehne, { sekunden: cfg.sekunden, bild: figurQuelle() }).then(res => {
+      window.LernSpiel[id](buehne, { sekunden: cfg.sekunden, bild: figurQuelle(), begleiter: begleiterAn ? hundQuelle() : "", stufe }).then(res => {
         if (res.abgebrochen) return;
         sitzung.punkte += res.punkte; sitzung.runden++;
-        const st = spielStand(id);
+        const st = spielStand(rekordId());
         const neuerRekord = res.punkte > st.rekord && st.runden > 0;
         st.rekord = Math.max(st.rekord, res.punkte); st.total += res.punkte; st.runden++;
         sichern();
@@ -455,9 +519,10 @@
           h("article", { class: "card resultat" },
             h("p", { class: "muted" }, "Diese Runde"),
             h("div", { class: "note-gross" }, `${sp.icon} ${res.punkte}`),
-            h("p", {}, `Rekord: ${st.rekord} · in diesem Spiel total: ${sitzung.punkte} ${sp.einheit}`)),
+            h("p", {}, `${id === "jagd" ? "Stufe " + STUFEN[stufe].name + " · " : ""}Rekord: ${st.rekord} · in diesem Spiel total: ${sitzung.punkte} ${sp.einheit}`)),
           h("div", { class: "row" },
             h("button", { class: "btn btn-primary", type: "button", onclick: frage }, "Weiter Fragen beantworten"),
+            id === "jagd" ? h("button", { class: "btn", type: "button", onclick: () => stufenWahl(frage) }, `Stufe ändern (jetzt: ${STUFEN[stufe].name})`) : null,
             h("button", { class: "btn", type: "button", onclick: sitzungEnde }, "Spiel beenden"))));
       });
     }
@@ -519,7 +584,7 @@
           h("button", { class: "btn", type: "button", onclick: startseite }, "Zur Übersicht"))));
     }
 
-    frage();
+    if (id === "jagd") stufenWahl(frage); else frage();
   }
 
   // ---------- Probetest ----------

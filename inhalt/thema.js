@@ -18,9 +18,15 @@ window.LERNINHALT = {
   "maskottchen": {
     "name": "Globi",
     "bild": "bilder/maskottchen.png",
-    "begruessung": "Hoi! Ich bin Globi. Zusammen machen wir dich fit für den Test über Internet, Bewertungen und KI.",
+    "begruessung": "Hoi! Ich bin Globi, und das ist mein Hund Bläss. Zusammen machen wir dich fit für den Test über Internet, Bewertungen und KI.",
     "lob": ["Super gemacht!", "Genau richtig!", "Bravo, das sitzt!", "Stark! Weiter so!"],
     "trost": ["Fast! Lies die Erklärung nochmals.", "Kein Problem, aus Fehlern lernt man.", "Knapp daneben – probier's beim nächsten Mal."]
+  },
+
+  "begleiter": {
+    "name": "Bläss",
+    "bild": "",
+    "zeigen": true
   },
 
   "spiel": {

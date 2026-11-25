@@ -20,6 +20,7 @@
     m.maskottchen = m.maskottchen || {};
     m.maskottchen.lob = Array.isArray(m.maskottchen.lob) ? m.maskottchen.lob : [];
     m.maskottchen.trost = Array.isArray(m.maskottchen.trost) ? m.maskottchen.trost : [];
+    m.begleiter = Object.assign({ name: "Bläss", bild: "", zeigen: true }, m.begleiter || {});
     m.kapitel = Array.isArray(m.kapitel) ? m.kapitel : [];
     m.kapitel.forEach(k => { k.id = k.id || neueId(); k.karten = Array.isArray(k.karten) ? k.karten : []; });
     m.uebungen = Array.isArray(m.uebungen) ? m.uebungen : [];
@@ -307,6 +308,7 @@
         feld("Begrüssung", mk, "begruessung", { typ: "textarea", zeilen: 2 }),
         zeilenFeld("Lob (ein Spruch pro Zeile)", mk, "lob", "Zufällig bei richtigen Antworten."),
         zeilenFeld("Trost (ein Spruch pro Zeile)", mk, "trost", "Zufällig bei falschen Antworten.")),
+      begleiterAbschnitt(),
       h("section", { class: "card stack" },
         h("h2", {}, "Lernspiele"),
         h("p", { class: "muted" }, "Die Spiele nutzen die Übungsfragen (ohne offene Fragen). Für jede Spielrunde müssen zuerst Fragen richtig beantwortet werden."),
@@ -326,6 +328,32 @@
           }),
           h("small", { class: "muted" }, "Ist nur ein Spiel gewählt, startet es direkt ohne Auswahl.")))
     ];
+  }
+
+  function begleiterAbschnitt() {
+    const bg = M.begleiter;
+    const vorschau = h("div", { class: "ed-bild ed-bild-klein" });
+    const zeige = () => vorschau.replaceChildren(bg.bild
+      ? h("img", { src: bg.bild, alt: "Vorschau Begleiter", onerror: (e) => { e.target.replaceWith(h("span", { class: "muted" }, "Bild nicht gefunden")); } })
+      : h("span", { class: "muted" }, "gezeichneter Hund"));
+    zeige();
+    const datei = h("input", { type: "file", accept: "image/*", hidden: true });
+    datei.addEventListener("change", async () => {
+      const f = datei.files[0]; if (!f) return;
+      try { bg.bild = await bildVerkleinern(f); zeige(); geaendert(); } catch { alert("Das Bild konnte nicht gelesen werden."); }
+      datei.value = "";
+    });
+    const an = h("input", { type: "checkbox", id: "ed-begl-an" });
+    an.checked = bg.zeigen !== false;
+    an.addEventListener("change", () => { bg.zeigen = an.checked; geaendert(); });
+    return h("section", { class: "card stack" },
+      h("h2", {}, "Begleiter"),
+      h("label", { class: "ed-check", for: "ed-begl-an" }, an, " Begleiter neben dem Maskottchen anzeigen"),
+      feld("Name", bg, "name", { hilfe: "Wird in den Texten nicht automatisch eingesetzt – erwähne ihn z. B. in der Begrüssung." }),
+      h("div", { class: "ed-bildzeile" }, vorschau,
+        h("div", { class: "row", style: "flex:1" },
+          h("label", { class: "btn" }, "Eigenes Bild wählen …", datei),
+          knopf("Gezeichneten Hund verwenden", () => { bg.bild = ""; zeige(); geaendert(); }))));
   }
 
   function reiterTheorie() {
@@ -559,5 +587,5 @@ window.LERNINHALT = ${JSON.stringify(sauber(), null, 2)};
     window.scrollTo(0, scrollY);
   }
 
-  window.LernEditor = { oeffnen, version: "6" };
+  window.LernEditor = { oeffnen, version: "7" };
 })();

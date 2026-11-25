@@ -17,7 +17,7 @@ Funktionen:
   Zu Beginn wählen die Schüler/innen eines von vier Spielen:
   - 🚀 **Globi-Flug** (Geschicklichkeit): gedrückt halten = steigen, Pakete sammeln, Viren ausweichen
   - ⭐ **Bewertungs-Fänger** (Geschicklichkeit): echte Bewertungen (Sterne) fangen, «FAKE» meiden; Maus/Finger oder ← →
-  - 🦠 **Viren-Jagd** (Reaktion): Viren auf den Bildschirmen antippen, Datenpakete nicht; Tastatur 1–9 möglich
+  - 🦠 **Viren-Jagd** (Reaktion): Viren auf den Bildschirmen antippen, Datenpakete nicht; drei Stufen (Leicht, Mittel, Schwer mit 16 Bildschirmen), Rekorde pro Stufe; bei Leicht und Mittel auch mit Tasten 1–9
   - 🏗️ **Globis Stadt** (ruhig, ohne Zeitdruck): jede richtige Antwort = 1 Münze, damit Gebäude bauen; die Stadt bleibt gespeichert
 
   Im Editor unter «Allgemein» stellst du ein: Antworten pro Runde, Rundendauer und welche Spiele zur Auswahl stehen.
@@ -58,6 +58,7 @@ Mit «Standardmaterial wiederherstellen» wird wieder `inhalt/thema.js` verwende
 ```
 titel, fach, stufe
 maskottchen: name, bild, begruessung, lob[], trost[]
+begleiter:  name, bild, zeigen          (optional; Hund neben dem Maskottchen, ohne Bild wird ein gezeichneter Hund verwendet)
 spiel:      fragenProRunde, sekunden, spiele[]   (optional; Standard 3, 30, alle Spiele)
 kapitel[]:  id, titel, icon, karten[]: { titel, text, merksatz }
 uebungen[]: { kapitel: <id>, typ, frage, ... , erklaerung }

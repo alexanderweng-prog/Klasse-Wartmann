@@ -67,7 +67,7 @@
   // erstelle(env) -> { update(dt), zeichne() }
   function starte(container, opt, erstelle) {
     stopp();
-    const { sekunden = 30, leben = 3, bild = "", titel = "Spiel", einheit = "Punkte", anleitung = [] } = opt;
+    const { sekunden = 30, leben = 3, bild = "", begleiter = "", titel = "Spiel", einheit = "Punkte", anleitung = [] } = opt;
     return new Promise(async (fertig) => {
       const canvas = document.createElement("canvas");
       canvas.className = "spiel-canvas";
@@ -89,6 +89,9 @@
       const figur = await ladeBild(bild);
       const figurH = 72;
       const figurB = figur ? figurH * (figur.naturalWidth / figur.naturalHeight) : 48;
+      const hund = await ladeBild(begleiter);
+      const hundH = 44;
+      const hundB = hund ? hundH * (hund.naturalWidth / hund.naturalHeight) : 0;
 
       const s = { zeit: 0, rest: sekunden, punkte: 0, leben, unverwundbar: 0, countdown: 3, funken: [], blitz: 0, vorbei: false };
 
@@ -145,7 +148,7 @@
       };
 
       const env = {
-        ctx, B, H, s, e, figur, figurB, figurH,
+        ctx, B, H, s, e, figur, figurB, figurH, hund, hundB, hundH,
         massstab: Math.max(0.75, B / 600),
         funken(x, y, farbe, n = 8, kraft = 240) {
           for (let i = 0; i < n; i++) s.funken.push({ x, y, vx: (Math.random() - .5) * kraft, vy: (Math.random() - .5) * kraft, t: .45, farbe });
@@ -169,6 +172,13 @@
             ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(-7, -5, 6, 0, Math.PI * 2); ctx.arc(9, -5, 6, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = "#1c2233"; ctx.beginPath(); ctx.arc(-6, -4, 3, 0, Math.PI * 2); ctx.arc(10, -4, 3, 0, Math.PI * 2); ctx.fill();
           }
+          ctx.restore();
+        },
+        zeichneHund(x, y, drehung = 0, spiegeln = false) {
+          if (!hund) return;
+          ctx.save(); ctx.translate(x, y); ctx.rotate(drehung);
+          if (spiegeln) ctx.scale(-1, 1);
+          ctx.drawImage(hund, -hundB / 2, -hundH / 2, hundB, hundH);
           ctx.restore();
         }
       };
@@ -229,7 +239,7 @@
       const SCHWERKRAFT = 950, SCHUB = 1900, MAX_V = 340;
       const X = Math.round(B * 0.18);
       const z = {
-        y: H / 2, vy: 0, viren: [], pakete: [], naechsterVirus: 1.8, naechstesPaket: 0.4,
+        y: H / 2, vy: 0, hundY: H / 2 + 20, viren: [], pakete: [], naechsterVirus: 1.8, naechstesPaket: 0.4,
         knoten: Array.from({ length: 26 }, () => ({ x: Math.random() * B, y: Math.random() * H, r: 1.5 + Math.random() * 2, tiefe: 0.3 + Math.random() * 0.7 }))
       };
       return {
@@ -241,6 +251,7 @@
           const rand = figurH / 2 + 6;
           if (z.y < rand + 34) { z.y = rand + 34; z.vy = 0; }
           if (z.y > H - rand) { z.y = H - rand; z.vy = 0; }
+          z.hundY += (z.y + 18 - z.hundY) * Math.min(1, dt * 4); // Hund folgt mit Verzögerung
 
           z.naechsterVirus -= dt;
           if (z.naechsterVirus <= 0) {
@@ -280,6 +291,7 @@
           for (const k of z.knoten) { ctx.beginPath(); ctx.arc(k.x, k.y, k.r, 0, Math.PI * 2); ctx.fill(); }
           for (const p of z.pakete) zeichnePaket(ctx, p.x, p.y, 1 + Math.sin(p.w) * 0.08);
           for (const v of z.viren) zeichneVirus(ctx, v.x, v.y + Math.sin(v.phase) * v.welle, v.r, v.phase * 0.3);
+          env.zeichneHund(X - figurB / 2 - env.hundB / 2 - 4, z.hundY + Math.sin(s.zeit * 8) * 3, Math.sin(s.zeit * 4) * 0.1);
           env.zeichneFigur(X, z.y, Math.max(-0.35, Math.min(0.35, z.vy / 900)));
           if (e.halten && s.countdown <= 0 && !(s.unverwundbar > 0 && Math.floor(s.unverwundbar * 10) % 2 === 0)) {
             ctx.fillStyle = "rgba(120, 200, 255, .8)";
@@ -298,7 +310,7 @@
     }, (env) => {
       const { ctx, B, H, s, e, figurB, figurH, massstab } = env;
       const Y = H - figurH / 2 - 8;
-      const z = { x: B / 2, dinge: [], naechstes: 0.3, hintergrund: Array.from({ length: 40 }, () => ({ x: Math.random() * B, y: Math.random() * H, r: Math.random() * 1.6 + .4 })) };
+      const z = { x: B / 2, hundX: B / 2 - 60, hundRechts: true, dinge: [], naechstes: 0.3, hintergrund: Array.from({ length: 40 }, () => ({ x: Math.random() * B, y: Math.random() * H, r: Math.random() * 1.6 + .4 })) };
       return {
         update(dt) {
           // Bewegung: Zeiger (Maus/Finger) oder Tasten
@@ -307,6 +319,11 @@
           else if (e.tasten.has("ArrowRight") || e.tasten.has("KeyD")) z.x += tempo * dt;
           else if (e.zeigerX !== null) z.x += (e.zeigerX - z.x) * Math.min(1, dt * 14);
           z.x = Math.max(figurB / 2, Math.min(B - figurB / 2, z.x));
+          // Hund bleibt an Globis Seite (links, ausser am linken Rand)
+          const ziel = z.x - figurB / 2 - env.hundB / 2 > 0 ? z.x - figurB / 2 - env.hundB / 2 + 6 : z.x + figurB / 2 + env.hundB / 2 - 6;
+          const alt = z.hundX;
+          z.hundX += (ziel - z.hundX) * Math.min(1, dt * 6);
+          if (Math.abs(z.hundX - alt) > 0.3) z.hundRechts = z.hundX > alt;
 
           z.naechstes -= dt;
           if (z.naechstes <= 0) {
@@ -333,6 +350,7 @@
           for (const p of z.hintergrund) { ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
           ctx.fillStyle = "rgba(255,255,255,.08)"; ctx.fillRect(0, H - 10, B, 10);
           for (const d of z.dinge) d.fake ? zeichneFake(ctx, d.x, d.y, 1) : zeichneStern(ctx, d.x, d.y, 17, Math.sin(d.dreh) * 0.3);
+          env.zeichneHund(z.hundX, H - env.hundH / 2 - 8 - Math.abs(Math.sin(s.zeit * 10)) * 3, 0, !z.hundRechts);
           env.zeichneFigur(z.x, Y, 0);
         }
       };
@@ -340,13 +358,20 @@
   }
 
   // ---------- Spiel 3: Viren-Jagd ----------
+  const JAGD_STUFEN = {
+    leicht: { sp: 3, ze: 3, dauer: 2.0, dauerMin: 1.3, dauerAbbau: 0.015, abstand: 1.0, abstandMin: 0.6, abstandAbbau: 0.008, paket: 0.15 },
+    mittel: { sp: 3, ze: 3, dauer: 1.5, dauerMin: 0.75, dauerAbbau: 0.02, abstand: 0.8, abstandMin: 0.35, abstandAbbau: 0.012, paket: 0.25 },
+    schwer: { sp: 4, ze: 4, dauer: 1.15, dauerMin: 0.55, dauerAbbau: 0.02, abstand: 0.6, abstandMin: 0.28, abstandAbbau: 0.01, paket: 0.33 }
+  };
   function jagd(container, opt = {}) {
+    const st = JAGD_STUFEN[opt.stufe] || JAGD_STUFEN.mittel;
+    const tastatur = st.sp * st.ze <= 9;
     return starte(container, {
       ...opt, titel: "Viren-Jagd", einheit: "Viren",
-      anleitung: ["Viren schnell antippen (oder Taste 1–9)", "Datenpakete NICHT antippen!", "Jeder Virus zählt."]
+      anleitung: [tastatur ? "Viren schnell antippen (oder Taste 1–9)" : "Viren schnell antippen", "Datenpakete NICHT antippen!", "Jeder Virus zählt."]
     }, (env) => {
       const { ctx, B, H, s, e } = env;
-      const SP = 3, ZE = 3, oben = 50, rand = 12;
+      const SP = st.sp, ZE = st.ze, oben = 50, rand = SP > 3 ? 9 : 12;
       const feldB = (B - rand * (SP + 1)) / SP;
       const feldH = (H - oben - rand * (ZE + 1)) / ZE;
       const felder = [];
@@ -365,7 +390,7 @@
       return {
         update(dt) {
           for (const k of e.klicks) {
-            if (k.taste) tippe(felder[k.taste - 1]);
+            if (k.taste) { if (tastatur) tippe(felder[k.taste - 1]); }
             else tippe(felder.find(f => k.x >= f.x && k.x <= f.x + feldB && k.y >= f.y && k.y <= f.y + feldH));
           }
           for (const f of felder) {
@@ -378,10 +403,10 @@
             const frei = felder.filter(f => !f.inhalt);
             if (frei.length) {
               const f = frei[Math.floor(Math.random() * frei.length)];
-              const dauer = Math.max(0.75, 1.5 - s.zeit * 0.02);
-              f.inhalt = { art: Math.random() < 0.25 ? "paket" : "virus", t: dauer, dauer, auf: 0, dreh: Math.random() * 6 };
+              const dauer = Math.max(st.dauerMin, st.dauer - s.zeit * st.dauerAbbau);
+              f.inhalt = { art: Math.random() < st.paket ? "paket" : "virus", t: dauer, dauer, auf: 0, dreh: Math.random() * 6 };
             }
-            z.naechstes = Math.max(0.35, 0.8 - s.zeit * 0.012) * (0.7 + Math.random() * 0.6);
+            z.naechstes = Math.max(st.abstandMin, st.abstand - s.zeit * st.abstandAbbau) * (0.7 + Math.random() * 0.6);
           }
         },
         zeichne() {
@@ -393,7 +418,7 @@
             ctx.fillStyle = f.rot > 0 ? "#7a1f1f" : f.gruen > 0 ? "#1f5a33" : "#0b1424";
             ctx.fillRect(f.x + 5, f.y + 5, feldB - 10, feldH * 0.88 - 10);
             ctx.fillStyle = "#6f86a8"; ctx.font = "bold 12px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "top";
-            ctx.fillText(String(i + 1), f.x + 9, f.y + 8);
+            if (tastatur) ctx.fillText(String(i + 1), f.x + 9, f.y + 8);
             if (f.inhalt) {
               const m = mitte(f), gr = Math.min(feldB, feldH) / 90 * f.inhalt.auf;
               if (f.inhalt.art === "virus") zeichneVirus(ctx, m.x, m.y, 22 * gr, f.inhalt.dreh += 0.02);
@@ -408,5 +433,5 @@
     });
   }
 
-  window.LernSpiel = { flug, faenger, jagd, stopp, version: "6" };
+  window.LernSpiel = { flug, faenger, jagd, stopp, JAGD_STUFEN, version: "7" };
 })();
