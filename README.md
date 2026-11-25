@@ -24,6 +24,20 @@ Funktionen:
 
 Der Lernfortschritt wird nur im Browser des jeweiligen Geräts gespeichert.
 
+## Material mit KI erstellen
+
+Im Editor (Lehrperson → Editor öffnen) gibt es den Reiter **✨ Aus Material**:
+
+1. Unterrichtsmaterial hochladen oder hineinziehen: PDF, Bilder (z. B. Fotos von Arbeitsblättern), Word (.docx) oder Text. Mehrere Dateien gehen zusammen. Alte Word-Dateien (.doc) bitte zuerst als .docx oder PDF speichern.
+2. Wählen: **neues Thema** (ersetzt Theorie, Übungen und Probetest, Maskottchen und Spiele bleiben) oder **neue Kapitel hinzufügen**. Dazu Übungen pro Kapitel, Punkte und Minuten für den Probetest und optional Wünsche an die KI.
+3. **Klassencode** eintragen (derselbe wie in der Lernwerkstatt) und «✨ Mit KI erstellen». Das dauert meist 1 bis 3 Minuten.
+4. Ergebnis in den Reitern Theorie, Übungen und Probetest durchsehen und anpassen, dann «In App übernehmen» oder «thema.js herunterladen».
+
+Die KI läuft über den Server der Lernwerkstatt (Vercel, Repo Container). Dein Anthropic-Schlüssel bleibt dort, die App kennt ihn nicht. Es gelten Klassencode und Stundenlimit des Servers.
+Grenzen: Der Server nimmt pro Anfrage höchstens etwa 4 MB an (Base64-kodiert). Grosse PDFs vorher auf die wichtigen Seiten kürzen. Bilder werden automatisch verkleinert.
+Datenschutz: Das Material geht an Anthropic (USA). Keine Namen oder Personendaten von Schülerinnen und Schülern hochladen.
+Die KI kann Fehler machen. Vor dem Einsatz alles durchsehen.
+
 ## Material austauschen
 
 Alle Inhalte stehen in **`inhalt/thema.js`**. Die übrigen Dateien bleiben unverändert.

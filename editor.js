@@ -472,6 +472,32 @@
     ];
   }
 
+  // ---------- KI: aus Material erstellen (ki-import.js) ----------
+  function reiterKi() {
+    if (!window.KiImport) return [h("section", { class: "card" }, h("p", {}, "Die KI-Funktion konnte nicht geladen werden (ki-import.js fehlt)."))];
+    return window.KiImport.reiter({
+      M,
+      neuZeichnen: () => { if (tab === "ki") zeichnen(); },
+      // Ergebnis der KI übernehmen; gibt die Anzahl Probleme laut Prüfung zurück
+      uebernehmen: (neu, modus) => {
+        if (modus === "hinzufuegen") {
+          M.kapitel.push(...(neu.kapitel || []));
+          M.uebungen.push(...(neu.uebungen || []));
+        } else {
+          if (neu.titel) M.titel = neu.titel;
+          if (!M.fach && neu.fach) M.fach = neu.fach;
+          if (!M.stufe && neu.stufe) M.stufe = neu.stufe;
+          M.kapitel = neu.kapitel || [];
+          M.uebungen = neu.uebungen || [];
+          M.probetest = neu.probetest || { titel: "Probetest", minuten: 15, hinweis: "", fragen: [] };
+        }
+        normalisieren(M);
+        geaendert();
+        return pruefeMaterial(sauber()).length;
+      }
+    });
+  }
+
   // ---------- Bild verkleinern und einbetten ----------
   function bildVerkleinern(datei) {
     return new Promise((resolve, reject) => {
@@ -549,7 +575,7 @@ window.LERNINHALT = ${JSON.stringify(sauber(), null, 2)};
   function zeichnen() {
     const scrollY = window.scrollY;
     feldNr = 0;
-    const reiter = [["allgemein", "Allgemein"], ["theorie", "Theorie"], ["uebungen", `Übungen (${M.uebungen.length})`], ["probetest", "Probetest"]];
+    const reiter = [["ki", "✨ Aus Material"], ["allgemein", "Allgemein"], ["theorie", "Theorie"], ["uebungen", `Übungen (${M.uebungen.length})`], ["probetest", "Probetest"]];
     const tabs = h("div", { class: "ed-tabs", role: "tablist" }, reiter.map(([id, text]) =>
       h("button", { type: "button", role: "tab", class: "ed-tab" + (tab === id ? " aktiv" : ""), "aria-selected": String(tab === id),
         onclick: () => { tab = id; zeichnen(); window.scrollTo(0, 0); } }, text)));
@@ -562,7 +588,7 @@ window.LERNINHALT = ${JSON.stringify(sauber(), null, 2)};
       oeffnenInput.value = "";
     });
 
-    const inhalt = { allgemein: reiterAllgemein, theorie: reiterTheorie, uebungen: reiterUebungen, probetest: reiterProbetest }[tab]();
+    const inhalt = { ki: reiterKi, allgemein: reiterAllgemein, theorie: reiterTheorie, uebungen: reiterUebungen, probetest: reiterProbetest }[tab]();
 
     root.replaceChildren(h("div", { class: "editor stack" },
       h("div", { class: "row between" },
