@@ -14,7 +14,7 @@ Funktionen:
 - **Probetest**: wie der echte Test, mit Timer, Selbstbewertung der offenen Fragen und Note nach dem Notenschlüssel.
 - **Lernen & Spielen**: Jede richtige Antwort lädt Energie. Ist sie voll (Standard: 3 richtige Antworten), gibt es eine Spielrunde.
   Falsch beantwortete Fragen kommen kurz danach nochmals. Offene Fragen sind ausgeschlossen, weil sie sich selbst bewerten lassen.
-  Zu Beginn wählen die Schüler/innen eines von vier Spielen:
+  Zu Beginn wählen die Schüler/innen eines von vier Spielen. Bei Flug, Fänger und Viren-Jagd folgt eine Stufe (Leicht, Mittel, Schwer); Rekorde gelten pro Stufe:
   - 🚀 **Globi-Flug** (Geschicklichkeit): gedrückt halten = steigen, Pakete sammeln, Viren ausweichen
   - ⭐ **Bewertungs-Fänger** (Geschicklichkeit): echte Bewertungen (Sterne) fangen, «FAKE» meiden; Maus/Finger oder ← →
   - 🦠 **Viren-Jagd** (Reaktion): Viren auf den Bildschirmen antippen, Datenpakete nicht; drei Stufen (Leicht, Mittel, Schwer mit 16 Bildschirmen), Rekorde pro Stufe; bei Leicht und Mittel auch mit Tasten 1–9

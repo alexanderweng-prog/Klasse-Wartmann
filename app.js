@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  window.LernappVersion = "7";
+  window.LernappVersion = "8";
 
   const { speicher, h, mischen, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL } = window.Lernapp;
 
@@ -357,11 +357,25 @@
     ["hundepark", "🐕", "Hundepark", 4], ["rechenzentrum", "🖥️", "Rechenzentrum", 8], ["stadion", "🏟️", "Stadion", 10], ["schloss", "🏰", "Schloss", 15]
   ].map(([id, icon, name, preis]) => ({ id, icon, name, preis }));
   const STADT_FELDER = 30;
-  const STUFEN = {
-    leicht: { name: "Leicht", icon: "🟢", text: "Viren bleiben länger sichtbar, nur selten ein Datenpaket." },
-    mittel: { name: "Mittel", icon: "🟡", text: "Schneller und mehr Datenpakete als Falle." },
-    schwer: { name: "Schwer", icon: "🔴", text: "16 Bildschirme, sehr schnell, viele Datenpakete." }
+  const STUFEN = { leicht: { name: "Leicht", icon: "🟢" }, mittel: { name: "Mittel", icon: "🟡" }, schwer: { name: "Schwer", icon: "🔴" } };
+  const STUFEN_TEXT = {
+    flug: {
+      leicht: "Langsam, wenige und kleine Viren. Nach einem Treffer länger geschützt.",
+      mittel: "Normales Tempo, mehr Viren, einige bewegen sich auf und ab.",
+      schwer: "Schnell, viele grosse Viren, die meisten bewegen sich."
+    },
+    faenger: {
+      leicht: "Langsam fallende Bewertungen, nur wenige Fakes.",
+      mittel: "Schneller und mehr Fakes.",
+      schwer: "Sehr schnell, fast jede zweite Bewertung ist ein Fake."
+    },
+    jagd: {
+      leicht: "Viren bleiben länger sichtbar, nur selten ein Datenpaket.",
+      mittel: "Schneller und mehr Datenpakete als Falle.",
+      schwer: "16 Bildschirme, sehr schnell, viele Datenpakete."
+    }
   };
+  const MIT_STUFEN = Object.keys(STUFEN_TEXT);
 
   const spielPool = () => (M.uebungen || []).filter(f => f.typ !== "offen");
   function spielEinstellungen() {
@@ -382,6 +396,12 @@
     while (st.felder.length < STADT_FELDER) st.felder.push(null);
     return st;
   }
+  // Rekorde aus der Zeit ohne Stufen entsprechen «Mittel»
+  if (fortschritt.spiele) for (const id of ["flug", "faenger"]) {
+    if (fortschritt.spiele[id] && !fortschritt.spiele[id + "-mittel"]) fortschritt.spiele[id + "-mittel"] = fortschritt.spiele[id];
+    delete fortschritt.spiele[id];
+  }
+  if (fortschritt.jagdStufe) { fortschritt.stufen = Object.assign({ jagd: fortschritt.jagdStufe }, fortschritt.stufen); delete fortschritt.jagdStufe; }
   // alter Spielstand (nur Globi-Flug) übernehmen
   if (fortschritt.spiel && !fortschritt.spiele) {
     fortschritt.spiele = { flug: { rekord: fortschritt.spiel.rekord || 0, total: fortschritt.spiel.paketeTotal || 0, runden: fortschritt.spiel.fluege || 0 } };
@@ -398,10 +418,10 @@
     if (cfg.spiele.length === 1) { spielSitzung(cfg.spiele[0]); return; }
     const karten = cfg.spiele.map(id => {
       const sp = SPIELE[id];
-      const st = id === "stadt" || id === "jagd" ? null : spielStand(id);
+      const st = id === "stadt" || MIT_STUFEN.includes(id) ? null : spielStand(id);
       const stadt = id === "stadt" ? stadtStand() : null;
-      const jagdRekorde = id === "jagd" ? Object.keys(STUFEN).filter(k => spielStand("jagd-" + k).runden).map(k => `${STUFEN[k].name} ${spielStand("jagd-" + k).rekord}`) : [];
-      const info = jagdRekorde.length ? `Rekord: ${jagdRekorde.join(" · ")}` :
+      const stufenRekorde = MIT_STUFEN.includes(id) ? Object.keys(STUFEN).filter(k => spielStand(`${id}-${k}`).runden).map(k => `${STUFEN[k].name} ${spielStand(`${id}-${k}`).rekord}`) : [];
+      const info = stufenRekorde.length ? `Rekord: ${stufenRekorde.join(" · ")}` :
         st && st.runden ? `Rekord: ${st.rekord} ${sp.einheit}` :
         stadt && stadt.felder.some(Boolean) ? `${stadt.felder.filter(Boolean).length} Gebäude gebaut` : "Noch nicht gespielt";
       return h("button", { class: "spiel-wahl", type: "button", onclick: () => { fortschritt.letztesSpiel = id; sichern(); spielSitzung(id); } },
@@ -426,23 +446,25 @@
     const istStadt = id === "stadt";
     let warteschlange = mischen(pool);
     const sitzung = { energie: 0, richtig: 0, beantwortet: 0, punkte: 0, runden: 0 };
-    let stufe = fortschritt.jagdStufe && STUFEN[fortschritt.jagdStufe] ? fortschritt.jagdStufe : "mittel";
-    const rekordId = () => id === "jagd" ? "jagd-" + stufe : id;
+    const hatStufen = MIT_STUFEN.includes(id);
+    const gemerkt = (fortschritt.stufen || {})[id];
+    let stufe = STUFEN[gemerkt] ? gemerkt : "mittel";
+    const rekordId = () => hatStufen ? `${id}-${stufe}` : id;
 
     function stufenWahl(danach) {
       zeige(h("div", { class: "stack" },
         h("div", { class: "row between" },
           h("button", { class: "btn btn-ghost", type: "button", onclick: spielStart }, "← Spiel wählen"),
           h("span", { class: "muted" }, `${sp.icon} ${sp.name}`)),
-        sprechblase("Wie schwer soll die Viren-Jagd sein? Du kannst die Stufe später wieder ändern.", { klein: true }),
+        sprechblase(`Wie schwer soll «${sp.name}» sein? Du kannst die Stufe später wieder ändern.`, { klein: true }),
         h("div", { class: "spiel-wahl-raster" }, Object.entries(STUFEN).map(([k, v]) => {
-          const r = spielStand("jagd-" + k);
+          const r = spielStand(`${id}-${k}`);
           return h("button", { class: "spiel-wahl" + (k === stufe ? " zuletzt" : ""), type: "button",
-            onclick: () => { stufe = k; fortschritt.jagdStufe = k; sichern(); danach(); } },
+            onclick: () => { stufe = k; fortschritt.stufen = Object.assign({}, fortschritt.stufen, { [id]: k }); sichern(); danach(); } },
             h("span", { class: "spiel-wahl-icon", "aria-hidden": "true" }, v.icon),
             h("span", { class: "spiel-wahl-name" }, v.name),
-            h("span", { class: "spiel-wahl-text" }, v.text),
-            h("span", { class: "spiel-wahl-info" }, r.runden ? `Rekord: ${r.rekord} Viren` : "Noch nicht gespielt"));
+            h("span", { class: "spiel-wahl-text" }, STUFEN_TEXT[id][k]),
+            h("span", { class: "spiel-wahl-info" }, r.runden ? `Rekord: ${r.rekord} ${sp.einheit}` : "Noch nicht gespielt"));
         }))));
     }
 
@@ -503,7 +525,7 @@
       const hilfe = { flug: "Maus, Finger oder Leertaste gedrückt halten = steigen, loslassen = sinken.",
         faenger: "Globi mit Maus oder Finger führen, oder mit den Pfeiltasten ← → bewegen.",
         jagd: stufe === "schwer" ? "Viren antippen oder anklicken." : "Viren antippen oder anklicken. Mit der Tastatur: Ziffern 1–9 für die Bildschirme." }[id];
-      zeige(h("div", { class: "stack" }, kopf(`${sp.name} läuft …`), buehne, h("p", { class: "muted spiel-hilfe" }, hilfe)));
+      zeige(h("div", { class: "stack" }, kopf(`${sp.name} · Stufe ${STUFEN[stufe].name}`), buehne, h("p", { class: "muted spiel-hilfe" }, hilfe)));
       window.LernSpiel[id](buehne, { sekunden: cfg.sekunden, bild: figurQuelle(), begleiter: begleiterAn ? hundQuelle() : "", stufe }).then(res => {
         if (res.abgebrochen) return;
         sitzung.punkte += res.punkte; sitzung.runden++;
@@ -519,10 +541,10 @@
           h("article", { class: "card resultat" },
             h("p", { class: "muted" }, "Diese Runde"),
             h("div", { class: "note-gross" }, `${sp.icon} ${res.punkte}`),
-            h("p", {}, `${id === "jagd" ? "Stufe " + STUFEN[stufe].name + " · " : ""}Rekord: ${st.rekord} · in diesem Spiel total: ${sitzung.punkte} ${sp.einheit}`)),
+            h("p", {}, `${hatStufen ? "Stufe " + STUFEN[stufe].name + " · " : ""}Rekord: ${st.rekord} · in diesem Spiel total: ${sitzung.punkte} ${sp.einheit}`)),
           h("div", { class: "row" },
             h("button", { class: "btn btn-primary", type: "button", onclick: frage }, "Weiter Fragen beantworten"),
-            id === "jagd" ? h("button", { class: "btn", type: "button", onclick: () => stufenWahl(frage) }, `Stufe ändern (jetzt: ${STUFEN[stufe].name})`) : null,
+            hatStufen ? h("button", { class: "btn", type: "button", onclick: () => stufenWahl(frage) }, `Stufe ändern (jetzt: ${STUFEN[stufe].name})`) : null,
             h("button", { class: "btn", type: "button", onclick: sitzungEnde }, "Spiel beenden"))));
       });
     }
@@ -584,7 +606,7 @@
           h("button", { class: "btn", type: "button", onclick: startseite }, "Zur Übersicht"))));
     }
 
-    if (id === "jagd") stufenWahl(frage); else frage();
+    if (hatStufen) stufenWahl(frage); else frage();
   }
 
   // ---------- Probetest ----------

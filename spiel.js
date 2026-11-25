@@ -230,7 +230,20 @@
   }
 
   // ---------- Spiel 1: Globi-Flug ----------
+  // Stufen: Leicht / Mittel (bisheriges Spiel) / Schwer
+  const FLUG_STUFEN = {
+    leicht: { start: 2.4, abstand: 2.2, abstandMin: 0.95, abbau: 0.025, tempo: 170, beschl: 3, rMin: 13, rVar: 8, welle: 0.3, schutz: 2.5 },
+    mittel: { start: 1.8, abstand: 1.6, abstandMin: 0.6, abbau: 0.03, tempo: 200, beschl: 5, rMin: 16, rVar: 10, welle: 0.5, schutz: 2 },
+    schwer: { start: 1.2, abstand: 1.15, abstandMin: 0.42, abbau: 0.03, tempo: 245, beschl: 7, rMin: 18, rVar: 11, welle: 0.75, schutz: 1.5 }
+  };
+  const FAENGER_STUFEN = {
+    leicht: { fake: 0.18, fakeMax: 0.3, fakeAnstieg: 0.004, abstand: 0.8, abstandMin: 0.5, abbau: 0.008, fall: 105, beschl: 3 },
+    mittel: { fake: 0.28, fakeMax: 0.45, fakeAnstieg: 0.006, abstand: 0.7, abstandMin: 0.35, abbau: 0.01, fall: 130, beschl: 5 },
+    schwer: { fake: 0.38, fakeMax: 0.55, fakeAnstieg: 0.006, abstand: 0.55, abstandMin: 0.28, abbau: 0.01, fall: 170, beschl: 7 }
+  };
+
   function flug(container, opt = {}) {
+    const st = FLUG_STUFEN[opt.stufe] || FLUG_STUFEN.mittel;
     return starte(container, {
       ...opt, titel: "Globi-Flug", einheit: "Pakete",
       anleitung: ["Gedrückt halten = steigen", "Loslassen = sinken", "Pakete sammeln, Viren ausweichen!"]
@@ -239,12 +252,12 @@
       const SCHWERKRAFT = 950, SCHUB = 1900, MAX_V = 340;
       const X = Math.round(B * 0.18);
       const z = {
-        y: H / 2, vy: 0, hundY: H / 2 + 20, viren: [], pakete: [], naechsterVirus: 1.8, naechstesPaket: 0.4,
+        y: H / 2, vy: 0, hundY: H / 2 + 20, viren: [], pakete: [], naechsterVirus: st.start, naechstesPaket: 0.4,
         knoten: Array.from({ length: 26 }, () => ({ x: Math.random() * B, y: Math.random() * H, r: 1.5 + Math.random() * 2, tiefe: 0.3 + Math.random() * 0.7 }))
       };
       return {
         update(dt) {
-          const tempo = (200 + s.zeit * 5) * massstab;
+          const tempo = (st.tempo + s.zeit * st.beschl) * massstab;
           z.vy += (e.halten ? -SCHUB + SCHWERKRAFT : SCHWERKRAFT) * dt;
           z.vy = Math.max(-MAX_V, Math.min(MAX_V, z.vy));
           z.y += z.vy * dt;
@@ -255,8 +268,8 @@
 
           z.naechsterVirus -= dt;
           if (z.naechsterVirus <= 0) {
-            z.viren.push({ x: B + 40, y: 50 + Math.random() * (H - 90), r: 16 + Math.random() * 10, phase: Math.random() * 6, welle: Math.random() < 0.5 ? 0 : 25 + Math.random() * 30 });
-            z.naechsterVirus = Math.max(0.6, 1.6 - s.zeit * 0.03) * (0.75 + Math.random() * 0.5);
+            z.viren.push({ x: B + 40, y: 50 + Math.random() * (H - 90), r: st.rMin + Math.random() * st.rVar, phase: Math.random() * 6, welle: Math.random() < st.welle ? 25 + Math.random() * 30 : 0 });
+            z.naechsterVirus = Math.max(st.abstandMin, st.abstand - s.zeit * st.abbau) * (0.75 + Math.random() * 0.5);
           }
           z.naechstesPaket -= dt;
           if (z.naechstesPaket <= 0) {
@@ -273,7 +286,7 @@
           }
           for (const v of z.viren) {
             const vy = v.y + Math.sin(v.phase) * v.welle;
-            if (Math.hypot(v.x - X, vy - z.y) < gr + v.r * 0.85 && env.treffer(X, z.y, 2)) { v.x = -100; break; }
+            if (Math.hypot(v.x - X, vy - z.y) < gr + v.r * 0.85 && env.treffer(X, z.y, st.schutz)) { v.x = -100; break; }
           }
           z.viren = z.viren.filter(v => v.x > -50);
           z.pakete = z.pakete.filter(p => p.x > -40 && !p.weg);
@@ -304,6 +317,7 @@
 
   // ---------- Spiel 2: Bewertungs-Fänger ----------
   function faenger(container, opt = {}) {
+    const st = FAENGER_STUFEN[opt.stufe] || FAENGER_STUFEN.mittel;
     return starte(container, {
       ...opt, titel: "Bewertungs-Fänger", einheit: "Sterne",
       anleitung: ["Globi mit Maus, Finger oder ← → bewegen", "Echte Bewertungen (★) fangen", "«FAKE»-Bewertungen ausweichen!"]
@@ -327,9 +341,9 @@
 
           z.naechstes -= dt;
           if (z.naechstes <= 0) {
-            const fake = Math.random() < Math.min(0.45, 0.28 + s.zeit * 0.006);
-            z.dinge.push({ x: 30 + Math.random() * (B - 60), y: 20, vy: (130 + s.zeit * 5 + Math.random() * 60) * massstab, fake, dreh: Math.random() * 6 });
-            z.naechstes = Math.max(0.35, 0.7 - s.zeit * 0.01) * (0.7 + Math.random() * 0.6);
+            const fake = Math.random() < Math.min(st.fakeMax, st.fake + s.zeit * st.fakeAnstieg);
+            z.dinge.push({ x: 30 + Math.random() * (B - 60), y: 20, vy: (st.fall + s.zeit * st.beschl + Math.random() * 60) * massstab, fake, dreh: Math.random() * 6 });
+            z.naechstes = Math.max(st.abstandMin, st.abstand - s.zeit * st.abbau) * (0.7 + Math.random() * 0.6);
           }
           for (const d of z.dinge) { d.y += d.vy * dt; d.dreh += dt * 2; }
           const fangB = figurB * 0.5 + 16;
@@ -433,5 +447,5 @@
     });
   }
 
-  window.LernSpiel = { flug, faenger, jagd, stopp, JAGD_STUFEN, version: "7" };
+  window.LernSpiel = { flug, faenger, jagd, stopp, version: "8" };
 })();

@@ -104,5 +104,5 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
-  window.Lernapp = { version: "7", speicher, h, mischen, TYPEN, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL: "lernapp.material" };
+  window.Lernapp = { version: "8", speicher, h, mischen, TYPEN, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL: "lernapp.material" };
 })();

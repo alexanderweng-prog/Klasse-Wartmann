@@ -587,5 +587,5 @@ window.LERNINHALT = ${JSON.stringify(sauber(), null, 2)};
     window.scrollTo(0, scrollY);
   }
 
-  window.LernEditor = { oeffnen, version: "7" };
+  window.LernEditor = { oeffnen, version: "8" };
 })();
