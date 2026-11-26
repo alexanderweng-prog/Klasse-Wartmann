@@ -447,5 +447,5 @@
     });
   }
 
-  window.LernSpiel = { flug, faenger, jagd, stopp, version: "8" };
+  window.LernSpiel = { flug, faenger, jagd, stopp, version: "9" };
 })();

@@ -1,7 +1,7 @@
 // Editor für Lernmaterial: Formularfelder statt JSON
 (() => {
   "use strict";
-  const { h, speicher, TYPEN, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL } = window.Lernapp;
+  const { h, speicher, TYPEN, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL, passwort } = window.Lernapp;
   const K_ENTWURF = "lernapp.entwurf";
 
   let M = null;          // Material, das gerade bearbeitet wird
@@ -309,6 +309,7 @@
         zeilenFeld("Lob (ein Spruch pro Zeile)", mk, "lob", "Zufällig bei richtigen Antworten."),
         zeilenFeld("Trost (ein Spruch pro Zeile)", mk, "trost", "Zufällig bei falschen Antworten.")),
       begleiterAbschnitt(),
+      passwortAbschnitt(),
       h("section", { class: "card stack" },
         h("h2", {}, "Lernspiele"),
         h("p", { class: "muted" }, "Die Spiele nutzen die Übungsfragen (ohne offene Fragen). Für jede Spielrunde müssen zuerst Fragen richtig beantwortet werden."),
@@ -328,6 +329,37 @@
           }),
           h("small", { class: "muted" }, "Ist nur ein Spiel gewählt, startet es direkt ohne Auswahl.")))
     ];
+  }
+
+  function passwortAbschnitt() {
+    const gesetzt = !!(M.lehrperson && M.lehrperson.pruefwert && !M.lehrperson.aus);
+    const neu1 = h("input", { type: "password", id: "ed-pw1", autocomplete: "new-password" });
+    const neu2 = h("input", { type: "password", id: "ed-pw2", autocomplete: "new-password" });
+    const meldung = h("p", { class: "lp-meldung", role: "status" });
+    const setzen = () => {
+      const a = neu1.value, b = neu2.value;
+      meldung.className = "lp-meldung fehler";
+      if (a.length < 6) { meldung.textContent = "Das Passwort braucht mindestens 6 Zeichen."; return; }
+      if (a !== b) { meldung.textContent = "Die beiden Eingaben stimmen nicht überein."; return; }
+      M.lehrperson = passwort.erstellen(a);
+      try { sessionStorage.setItem("lernapp.lp-offen", M.lehrperson.pruefwert); } catch { /* ignorieren */ }
+      geaendert(); zeichnen();
+      alert("Neues Passwort gesetzt.\n\nEs gilt, sobald du «In App übernehmen» klickst (nur dieser Browser).\nFür alle Geräte: «thema.js herunterladen» und auf GitHub im Ordner inhalt hochladen.");
+    };
+    return h("section", { class: "card stack" },
+      h("h2", {}, "Passwort für den Lehrerbereich"),
+      h("p", { class: "ed-pw-status " + (gesetzt ? "an" : "aus") }, gesetzt ? "🔒 Ein Passwort ist festgelegt." : "🔓 Kein Passwort festgelegt – jede Person kann den Lehrerbereich öffnen."),
+      h("p", { class: "muted" }, "Das Passwort selbst wird nicht gespeichert, nur ein Prüfwert. Ein vergessenes Passwort lässt sich deshalb nicht anzeigen, nur neu festlegen."),
+      h("div", { class: "ed-zwei" },
+        h("div", { class: "ed-feld" }, h("label", { for: "ed-pw1" }, gesetzt ? "Neues Passwort" : "Passwort"), neu1),
+        h("div", { class: "ed-feld" }, h("label", { for: "ed-pw2" }, "Passwort wiederholen"), neu2)),
+      meldung,
+      h("div", { class: "row" },
+        knopf(gesetzt ? "Passwort ändern" : "Passwort festlegen", setzen, { klasse: "btn-primary" }),
+        gesetzt ? knopf("Passwort entfernen", () => {
+          if (!confirm("Passwortschutz wirklich entfernen? Danach kann jede Person den Lehrerbereich öffnen.")) return;
+          M.lehrperson = { aus: true }; geaendert(); zeichnen();
+        }, { klasse: "btn-gefahr" }) : null));
   }
 
   function begleiterAbschnitt() {
@@ -583,7 +615,11 @@ window.LERNINHALT = ${JSON.stringify(sauber(), null, 2)};
     const oeffnenInput = h("input", { type: "file", accept: ".json,.js,application/json,text/javascript", hidden: true });
     oeffnenInput.addEventListener("change", async () => {
       const f = oeffnenInput.files[0]; if (!f) return;
-      try { M = normalisieren(parseDatei(await f.text())); tab = "allgemein"; geaendert(); zeichnen(); }
+      try {
+        const neu = normalisieren(parseDatei(await f.text()));
+        if (!neu.lehrperson && M.lehrperson) neu.lehrperson = M.lehrperson; // Passwortschutz bleibt erhalten
+        M = neu; tab = "allgemein"; geaendert(); zeichnen();
+      }
       catch (e) { alert("Die Datei konnte nicht gelesen werden: " + e.message); }
       oeffnenInput.value = "";
     });
@@ -604,7 +640,8 @@ window.LERNINHALT = ${JSON.stringify(sauber(), null, 2)};
         h("label", { class: "btn" }, "Datei öffnen …", oeffnenInput),
         knopf("Neues leeres Thema", () => {
           if (!confirm("Ein leeres Thema beginnen? Das aktuelle Material im Editor wird ersetzt (das Material in der App bleibt, bis du übernimmst).")) return;
-          M = leeresMaterial(); tab = "allgemein"; geaendert(); zeichnen();
+          const schutz = M.lehrperson;
+          M = leeresMaterial(); if (schutz) M.lehrperson = schutz; tab = "allgemein"; geaendert(); zeichnen();
         })),
       statusZeile,
       fehlerBox,
@@ -613,5 +650,5 @@ window.LERNINHALT = ${JSON.stringify(sauber(), null, 2)};
     window.scrollTo(0, scrollY);
   }
 
-  window.LernEditor = { oeffnen, version: "8" };
+  window.LernEditor = { oeffnen, version: "9" };
 })();

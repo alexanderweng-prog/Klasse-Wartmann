@@ -38,6 +38,26 @@ Grenzen: Der Server nimmt pro Anfrage höchstens etwa 4 MB an (Base64-kodiert). 
 Datenschutz: Das Material geht an Anthropic (USA). Keine Namen oder Personendaten von Schülerinnen und Schülern hochladen.
 Die KI kann Fehler machen. Vor dem Einsatz alles durchsehen.
 
+## Lehrerbereich mit Passwort
+
+Der Bereich «Lehrperson» (Editor, Material laden, Fortschritt löschen) ist mit einem Passwort geschützt.
+Gespeichert wird nur ein Prüfwert (gesalzen, 20 000-mal SHA-256), nicht das Passwort selbst.
+Nach dem Entsperren bleibt der Bereich offen, bis der Browser-Tab geschlossen oder «Sperren» geklickt wird.
+
+Passwort ändern: Editor → Allgemein → «Passwort für den Lehrerbereich». Es gilt nach «In App übernehmen» im eigenen Browser,
+für alle Geräte erst, wenn die neue `thema.js` hochgeladen ist (siehe unten).
+
+Grenzen: Die App läuft ganz im Browser. Wer sich mit Webentwicklung auskennt, kann einen solchen Schutz umgehen.
+Er hält Schülerinnen und Schüler aus dem Lehrerbereich fern, ist aber kein Hochsicherheitsschutz.
+Änderungen im Lehrerbereich betreffen ohnehin nur den eigenen Browser, nie die veröffentlichte Version.
+
+## Online-Version und neues Material verteilen
+
+Die veröffentlichte Version wird automatisch aus dem Branch `main` erstellt (Vercel).
+Neues Material für alle: im Editor «thema.js herunterladen», dann auf GitHub im Branch `main` im Ordner `inhalt`
+über «Add file → Upload files» hochladen und bestätigen. Nach etwa einer Minute ist die Seite aktualisiert,
+die Schülerinnen und Schüler laden die Seite neu.
+
 ## Material austauschen
 
 Alle Inhalte stehen in **`inhalt/thema.js`**. Die übrigen Dateien bleiben unverändert.

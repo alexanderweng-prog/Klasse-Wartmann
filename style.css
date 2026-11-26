@@ -330,3 +330,11 @@ dialog::backdrop { background: rgba(10, 15, 30, .5); }
 .ki-liste { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 .ki-liste li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; }
 #ki-fortschritt { margin-left: .5em; }
+
+/* Passwort */
+.pw-label { display: block; font-weight: 600; margin-bottom: 6px; }
+.pw-eingabe { font: inherit; width: 100%; padding: 10px; min-height: 44px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+.pw-eingabe:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.ed-pw-status { font-weight: 600; }
+.ed-pw-status.an { color: var(--ok); }
+.ed-pw-status.aus { color: var(--bad); }

@@ -1,8 +1,8 @@
 (() => {
   "use strict";
-  window.LernappVersion = "8";
+  window.LernappVersion = "9";
 
-  const { speicher, h, mischen, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL } = window.Lernapp;
+  const { speicher, h, mischen, pruefeMaterial, parseDatei, herunterladen, K_MATERIAL, passwort } = window.Lernapp;
 
   const eigenesMaterial = speicher.lesen(K_MATERIAL, null);
   const M = (eigenesMaterial && !pruefeMaterial(eigenesMaterial).length) ? eigenesMaterial : window.LERNINHALT;
@@ -701,13 +701,52 @@
   const dlg = document.getElementById("lp-dialog");
   const meldung = document.getElementById("lp-meldung");
   const melde = (t, art) => { meldung.textContent = t; meldung.className = "lp-meldung " + (art || ""); };
-  document.getElementById("lp-btn").addEventListener("click", () => {
-    document.getElementById("lp-quelle").textContent = materialQuelle === "eigenes"
+  // Passwortschutz: gilt das Passwort aus dem aktiven Material, sonst das aus inhalt/thema.js
+  const lpSchutz = (() => {
+    const gueltig = (x) => x && x.salz && x.pruefwert ? x : null;
+    if (M.lehrperson && M.lehrperson.aus) return null; // im Editor bewusst entfernt
+    return gueltig(M.lehrperson) || gueltig((window.LERNINHALT || {}).lehrperson);
+  })();
+  const K_OFFEN = "lernapp.lp-offen";
+  const istOffen = () => { if (!lpSchutz) return true; try { return sessionStorage.getItem(K_OFFEN) === lpSchutz.pruefwert; } catch { return false; } };
+  const merkeOffen = (an) => { try { an ? sessionStorage.setItem(K_OFFEN, lpSchutz.pruefwert) : sessionStorage.removeItem(K_OFFEN); } catch { /* ignorieren */ } };
+
+  function lpOeffnen() {
+    document.getElementById("lp-quelle").textContent = (materialQuelle === "eigenes"
       ? `Aktiv: eigenes Material «${M.titel}» (in diesem Browser gespeichert).`
-      : `Aktiv: Standardmaterial aus inhalt/thema.js («${M.titel}»).`;
+      : `Aktiv: Standardmaterial aus inhalt/thema.js («${M.titel}»).`) +
+      (lpSchutz ? "" : " Achtung: Kein Passwort festgelegt – im Editor unter «Allgemein» einrichten.");
+    document.getElementById("lp-sperren").hidden = !lpSchutz;
     melde("");
     dlg.showModal();
+  }
+  const pwDlg = document.getElementById("pw-dialog");
+  const pwEingabe = document.getElementById("pw-eingabe");
+  const pwMeldung = document.getElementById("pw-meldung");
+  let fehlversuche = 0;
+  document.getElementById("lp-btn").addEventListener("click", () => {
+    if (istOffen()) { lpOeffnen(); return; }
+    pwEingabe.value = ""; pwMeldung.textContent = ""; pwMeldung.className = "lp-meldung";
+    pwDlg.showModal(); pwEingabe.focus();
   });
+  document.getElementById("pw-abbrechen").addEventListener("click", () => pwDlg.close());
+  document.getElementById("pw-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const ok = document.getElementById("pw-ok");
+    ok.disabled = true; pwMeldung.textContent = "Wird geprüft …"; pwMeldung.className = "lp-meldung";
+    setTimeout(() => {
+      if (passwort.pruefen(pwEingabe.value, lpSchutz)) {
+        fehlversuche = 0; merkeOffen(true); ok.disabled = false; pwDlg.close(); lpOeffnen(); return;
+      }
+      fehlversuche++;
+      const warten = Math.min(30, fehlversuche >= 3 ? 2 ** (fehlversuche - 2) : 0);
+      pwMeldung.className = "lp-meldung fehler";
+      pwMeldung.textContent = warten ? `Falsches Passwort. Bitte ${warten} Sekunden warten.` : "Falsches Passwort.";
+      pwEingabe.select();
+      setTimeout(() => { ok.disabled = false; }, warten * 1000);
+    }, 30);
+  });
+  document.getElementById("lp-sperren").addEventListener("click", () => { merkeOffen(false); dlg.close(); });
   document.getElementById("lp-datei").addEventListener("change", async (e) => {
     const datei = e.target.files[0];
     if (!datei) return;
@@ -715,6 +754,7 @@
       const daten = parseDatei(await datei.text());
       const fehler = pruefeMaterial(daten);
       if (fehler.length) { melde("Fehler im Material: " + fehler.slice(0, 5).join(" "), "fehler"); return; }
+      if (!daten.lehrperson && lpSchutz) daten.lehrperson = lpSchutz; // Passwortschutz bleibt erhalten
       if (!speicher.schreiben(K_MATERIAL, daten)) {
         melde("Der Browser erlaubt kein Speichern. Ersetze stattdessen die Datei inhalt/thema.js.", "fehler"); return;
       }
@@ -734,6 +774,7 @@
     }
     dlg.close();
     stoppeTimer();
+    if (!istOffen()) return;
     window.LernEditor.oeffnen(M, app, startseite);
   });
   document.getElementById("lp-standard").addEventListener("click", () => {

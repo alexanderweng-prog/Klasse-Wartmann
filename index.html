@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lernapp</title>
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
   <header class="topbar">
@@ -16,6 +16,20 @@
   </header>
 
   <main id="app" tabindex="-1"></main>
+
+  <dialog id="pw-dialog">
+    <form class="lp-form" id="pw-form">
+      <h2>Bereich Lehrperson</h2>
+      <p>Dieser Bereich ist mit einem Passwort geschützt.</p>
+      <label for="pw-eingabe" class="pw-label">Passwort</label>
+      <input type="password" id="pw-eingabe" class="pw-eingabe" autocomplete="current-password" required>
+      <p class="lp-meldung" id="pw-meldung" role="alert"></p>
+      <div class="lp-row end">
+        <button class="btn" type="button" id="pw-abbrechen">Abbrechen</button>
+        <button class="btn btn-primary" type="submit" id="pw-ok">Öffnen</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="lp-dialog">
     <form method="dialog" class="lp-form">
@@ -42,21 +56,22 @@
       </div>
 
       <div class="lp-row end">
+        <button class="btn" type="button" id="lp-sperren" hidden>Sperren</button>
         <button class="btn btn-primary" value="close">Schliessen</button>
       </div>
     </form>
   </dialog>
 
-  <script src="inhalt/thema.js?v=8"></script>
-  <script src="gemeinsam.js?v=8"></script>
-  <script src="ki-import.js?v=8"></script>
-  <script src="editor.js?v=8"></script>
-  <script src="spiel.js?v=8"></script>
-  <script src="app.js?v=8"></script>
+  <script src="inhalt/thema.js?v=9"></script>
+  <script src="gemeinsam.js?v=9"></script>
+  <script src="ki-import.js?v=9"></script>
+  <script src="editor.js?v=9"></script>
+  <script src="spiel.js?v=9"></script>
+  <script src="app.js?v=9"></script>
   <script>
     // Prüft, ob alle Programmdateien zur gleichen Version gehören
     (function () {
-      var v = "8";
+      var v = "9";
       var ok = window.Lernapp && window.Lernapp.version === v &&
                window.LernEditor && window.LernEditor.version === v &&
                window.LernSpiel && window.LernSpiel.version === v &&

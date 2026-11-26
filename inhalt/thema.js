@@ -23,6 +23,11 @@ window.LERNINHALT = {
     "trost": ["Fast! Lies die Erklärung nochmals.", "Kein Problem, aus Fehlern lernt man.", "Knapp daneben – probier's beim nächsten Mal."]
   },
 
+  "lehrperson": {
+    "salz": "d6b8465009e30f2a05cc6827",
+    "pruefwert": "17a50590713a4473b8f59d1f106b395be6ec23c5fb85274d2ec23f1d9e5129db"
+  },
+
   "begleiter": {
     "name": "Bläss",
     "bild": "",
